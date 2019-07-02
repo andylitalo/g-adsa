@@ -129,7 +129,7 @@ def extrapolate_equilibrium(t, m, maxfev=800, p0=(-0.01, -1E-4, 0.01)):
     return m_eq
 
 
-def get_inds_for_curr_p(p_arr, p_set, p_thresh_frac, last_bound):
+def get_inds_for_curr_p(p_arr, p_set, p_thresh_frac, last_bound, small_window_reduction=0.25):
     """
     Returns the indices of the data arrays corresponding to the current pressure
     step (p_set).
@@ -143,15 +143,38 @@ def get_inds_for_curr_p(p_arr, p_set, p_thresh_frac, last_bound):
         last_bound : int
             index of upper bound for indices of the last pressure set point
             useful for distinguishing pressures from adsorption and desorption
+        small_window_reduction : float
+            fraction by which p_thresh_frac is reduced for smaller window after
+            averaging p in current window, used to remove outliers
         
     Returns :
         i_p : array of ints
             Array of indices corresponding to the current pressure set point.
     """
     # get indices of pressures within threshold of set point
-    i_p_all = np.abs(p_set - p_arr) <= p_thresh_frac*p_set
+    in_p_window = np.abs(p_set - p_arr) <= p_thresh_frac*p_set
     # identify bounds of regions with correct pressure
-    possible_bounds = np.where(np.logical_xor(i_p_all[1:], i_p_all[:-1]))[0] + 1 # + 1 to make up for shifting
+    possible_bounds = np.where(np.logical_xor(in_p_window[1:], in_p_window[:-1]))[0] + 1 # + 1 to make up for shifting
+    # select the first pair of bounds after last upper bound
+    # this prevents selection of adsorption during desorption and vice-versa
+    i_p_bounds = possible_bounds[possible_bounds > last_bound][:2]
+    # store the upper bound of the last set of bounds
+#    last_bound = i_p_bounds[-1]
+    # if you reach the end of the data set, such that the pressure ends on the
+    # current pressure, append last index
+    if len(i_p_bounds) == 1:
+        i_p_bounds = np.concatenate((i_p_bounds, np.array([len(p_arr)-1])))
+    # indices are those between the bounds
+    i_p = np.arange(i_p_bounds[0], i_p_bounds[1])
+    
+    # average all the points in the current pressure step
+    # because there are so many data points, the outliers will be "drowned out"
+    # then take the points that are within a smaller threshold of the average
+    p_curr = p_arr[i_p]
+    p_mean = np.mean(p_curr)
+    in_small_p_window = np.abs(p_mean - p_arr) <= p_thresh_frac*p_mean*small_window_reduction
+    # identify bounds of regions with correct pressure
+    possible_bounds = np.where(np.logical_xor(in_small_p_window[1:], in_small_p_window[:-1]))[0] + 1 # + 1 to make up for shifting
     # select the first pair of bounds after last upper bound
     # this prevents selection of adsorption during desorption and vice-versa
     i_p_bounds = possible_bounds[possible_bounds > last_bound][:2]
