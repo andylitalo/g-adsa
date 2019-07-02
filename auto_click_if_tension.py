@@ -14,7 +14,7 @@ import time
 
 # parameters
 get_location = False
-n_ims = 100 # number of images to analyze
+n_ims =  # number of images to analyze
 d = 0 # duration of moving mouse to click
 sleep = 0.1
 pyautogui.FAILSAFE = True # fail-safe by moving mouse to upper left
@@ -39,7 +39,7 @@ try:
             # click to go to next image
             pyautogui.click(552, 883, button='left', duration=d)
             # wait for 10 seconds to go to next image
-            time.sleep(1)
+            time.sleep(8)
             # save analysis of interfacial tension
             pyautogui.click(24, 51, button='left', duration=d) # file
             time.sleep(sleep)

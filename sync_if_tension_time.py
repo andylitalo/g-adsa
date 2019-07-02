@@ -16,11 +16,11 @@ import dataproc
 adsa_folder = '../../EXPERIMENTS/Italy/data/adsa/'
 adsa_file_list = ['20190612_0614_1k2f_adsa_data.csv', '20190614_0617_1k2f_adsa_data.csv']
 adsa_t0_list = [3600*25 + 60*8 + 2, 24*3600*2 + 60*56 + 2] # belsorp: 6/12 6:05:58pm; v1 6/12 6:16pm, v2 6/14 7:02pm
-w_samp_0 = 0.686 # mass of polyol sample in atmospheric pressure [g]
+w_samp_atm = 0.686 # mass of polyol sample in atmospheric pressure [g]
 v_drop_0_manual = 3.332 # if not available in video, input initial drop volume [uL]; o/w put 0
 rho_samp = 1.02 # density of polyol sample from TDS [g/cc]
 # initial rubotherm at 6:16pm 6/12; video started 7:14pm 6/14
-rubo_file_path = '../../EXPERIMENTS/Italy/data/gravimetry/v2110b-TRD-061219-1804.csv'
+grav_file_path = '../../EXPERIMENTS/Italy/data/gravimetry/v2110b-TRD-061219-1804.csv'
 save_file_path = '../../EXPERIMENTS/Italy/data/gravimetry/1k2f_1.csv'
 # number of measurements to average for surface tension and volume readings
 n_adsa = 3
@@ -71,13 +71,13 @@ for i in range(len(adsa_file_list)):
     t_adsa = np.concatenate((t_adsa, df_adsa['Secs.1'].values + adsa_t0_list[i]))
 
 # load rubotherm data and process
-df = pd.read_csv(rubo_file_path, header=3)
+df = pd.read_csv(grav_file_path, header=3)
 # Extract time in terms of seconds after start
 date_raw = df['DATE'].values
 time_raw = df['TIME'].values
-t_rubo = dataproc.convert_time(date_raw, time_raw)
+t_grav = dataproc.convert_time(date_raw, time_raw)
 # shift time so initial time is zero to match interfacial tension time
-t_rubo -= t_rubo[0]
+t_grav -= t_grav[0]
 
 # load rubotherm data in sync with time
 br_arr = df['WEITGHT(g)'].values
@@ -98,7 +98,7 @@ i_desorp = i_desorp_guess + np.where(p_step_arr[-1] - p_arr[i_desorp_guess:] >
                                      p_thresh_frac_lo*p_step_arr[-1])[0][0]
 inds_sorp = np.arange(i_p_zero, i_desorp)
 p_sorp = p_arr[inds_sorp]
-t_sorp = t_rubo[inds_sorp]
+t_sorp = t_grav[inds_sorp]
 br_sorp = br_arr[inds_sorp]
 bp_sorp = bp_arr[inds_sorp]
 # extract interfacial tension, drop volume, and mass at MP1 for each pressure
@@ -140,7 +140,18 @@ for i in range(len(p_step_arr)):
         df_meas['drop volume std [uL]'].iloc[i] = np.std(drop_vol[i_adsa])
     except:
         print('no adsa data for p = %d kPa' % p_step)
- 
+
+# balance reading at each pressure at equilibrium
+br_e = df_meas['mp1 [g]'].values - df_meas['zero [g]'].values
+br_e_0 = br_e[0] # balance reading at 0 pressure
+# approximate mass of gas at atmospheric pressure as that at 150 kPa (p_step #2)
+# assume volume of sample is same as at atmospheric pressure
+w_gas_atm = br_e[2] - br_e_0 + rho_gas(p_step_arr[2])*(w_samp_atm/rho_samp + v_ref_he)
+w_samp_0 = w_samp_atm - w_gas_atm
+# sample mass at 0 atmosphere
+#w_samp_0 = w_samp_atm - (df_meas['mp1 [g]'].values[2] - df_meas['zero [g]'].values[2]) + \
+#                (df_meas['mp1 [g]'].values[0] - df_meas['zero [g]'].values[0])
+print('w_samp_0 = %f g vs. w_samp_atm = %f g.' % (w_samp_0, w_samp_atm))
 # calculate volume [mL]
 v_samp_0 = w_samp_0 / rho_samp
 v_drop = df_meas['drop volume [uL]'].values
@@ -151,12 +162,10 @@ if v_drop_0_manual > 0:
 else:
     v_drop_0 = v_drop[0]
 v_samp = v_drop / v_drop_0 * v_samp_0
-# balance reading at each pressure at equilibrium
-br_e = df_meas['mp1 [g]'].values
-br_e_0 = br_e[0] # balance reading at 0 pressure
+
 
 # calculate "actual gas weight gain"; volumes in mL, density in g/mL
-w_gas_act = br_e - br_e_0 + rho_gas(p_step_arr)*(v_samp + v_ref_he) # TODO get v_ref_he!!!
+w_gas_act = br_e - br_e_0 + rho_gas(p_step_arr)*(v_samp + v_ref_he)
 # calculate solubility w/w
 df_meas['solubility'] = w_gas_act / (w_samp_0 + w_gas_act)
 
