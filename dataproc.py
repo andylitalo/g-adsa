@@ -49,10 +49,10 @@ def compute_gas_mass(i, p_arr, p_set_arr, df_meas, bp_arr, br_arr, t_grav,
     p_set = p_set_arr[i]
     
     # get indices of corresponding to the current pressure
-    i_p, last_bound = get_inds_for_curr_p(p_arr, p_set, p_thresh_frac, last_bound)
-    bp_select = bp_arr[i_p]
-    br_select = br_arr[i_p]
-    t_select = t_grav[i_p]
+    i_p0, i_p1 = get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=last_bound)
+    bp_select = bp_arr[i_p0:i_p1]
+    br_select = br_arr[i_p0:i_p1]
+    t_select = t_grav[i_p0:i_p1]
     
     # extract mp1 measurements and corresponding times for the current pressure set point
     is_mp1 = (bp_select == 2)
@@ -77,7 +77,7 @@ def compute_gas_mass(i, p_arr, p_set_arr, df_meas, bp_arr, br_arr, t_grav,
     # correct for buoyancy to get the true mass of the sample
     w_gas_act = w_gas_app + buoyancy
     
-    return w_gas_act, t_mp1, df_meas, last_bound, is_adsorbing
+    return w_gas_act, t_mp1, df_meas, i_p1, is_adsorbing
 
 
 def convert_time(date, time):
@@ -184,7 +184,7 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
                                  p_thresh_frac*p_set*window_reduction + min_window)[0]
     i0_small_window = inds_small_window[0]
     i1_small_window = inds_small_window[-1]
-    _, inds_accepted = reject_outliers(np.diff(p_curr[i0_small_window:i1_small_window]),
+    _, inds_accepted = reject_outliers(np.abs(np.diff(p_curr[i0_small_window:i1_small_window])),
                                             return_inds=True)
     # because we cut the pressure array multiple times, the indices are shifted
     # down, so we must shift them back up to get the true indices for the current pressure
@@ -298,7 +298,8 @@ def get_mp1_interval_2nd_deriv(mp1, is_adsorbing, w_thresh=0.00005):
   
 def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_set_arr,
               hdr_adsa=1, hdr_grav=3, 
-              columns=['p set [kPa]', 'p actual [kPa]', 'zero [g]', 'zero std [g]', 
+              columns=['p set [kPa]', 'p actual [kPa]', 'p std [kPa]',
+                       'zero [g]', 'zero std [g]', 
                        'mp1 [g]', 'mp1 std [g]', 'mp2 [g]', 'mp2 std [g]', 
                        'M_0 (extrap) [g]', 'M_0 (prev) [g]', 
                        'M_infty (extrap) [g]', 'M_infty (final) [g]',
@@ -307,6 +308,7 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
                        'sample volume [mL]', 'dissolved gas balance reading [g]',
                        'buoyancy correction [g]', 'actual weight of dissolved gas [g]',
                        'solubility [w/w]', 'specific volume [mL/g]', 
+                       'specific volume error [mL/g]',
                        'diffusivity (sqrt) [cm^2/s]', 'diffusivity (exp) [cm^2/s]',
                        'diffusion time constant [s]']):
     """
@@ -425,21 +427,24 @@ def store_grav_adsa(df_meas, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr, if_t
     bp_select = bp_arr[i_p0:i_p1]
     # indices for different measuring positions at end of measurement
     # 'zero' is tare; 'mp1' is tare plus the hook, crucible, and sample; 'mp2' also includes mass of cylinder
-    i_zero = np.where(bp_select==1)[0]
+    # remove the first points in case balance has not yet settled
+    i_zero = np.where(bp_select==1)[0][1:]
     i_mp1 = np.where(bp_select==2)[0]
-    i_mp2 = np.where(bp_select==3)[0]
+    i_mp2 = np.where(bp_select==3)[0][1:]
     # identify final measurement of 'measuring point 1'
     i_mp1_f = i_mp1[np.logical_and(i_mp1 > np.max(i_zero), i_mp1 < np.min(i_mp2))]
+    i_mp1_f = i_mp1_f[1:]
+    
     # get averages and stdev of each balance reading (br), rejecting obvious
     # outliers (in case only part of the mass is lifted)
-    df_meas['zero [g]'].iloc[i] = np.mean(reject_outliers(br_select[i_zero]))
-    std_zero = np.std(reject_outliers(br_select[i_zero]))
+    df_meas['zero [g]'].iloc[i] = np.mean(br_select[i_zero])
+    std_zero = np.std(br_select[i_zero])
     df_meas['zero std [g]'].iloc[i] = max(std_zero, w_resolution)
-    df_meas['mp1 [g]'].iloc[i] = np.mean(reject_outliers(br_select[i_mp1_f]))
+    df_meas['mp1 [g]'].iloc[i] = np.mean(br_select[i_mp1_f])
     std_mp1 = np.std(reject_outliers(br_select[i_mp1_f]))
     df_meas['mp1 std [g]'].iloc[i] = max(std_mp1, w_resolution)
-    df_meas['mp2 [g]'].iloc[i] = np.mean(reject_outliers(br_select[i_mp2]))
-    std_mp2 = np.std(reject_outliers(br_select[i_mp2]))
+    df_meas['mp2 [g]'].iloc[i] = np.mean(br_select[i_mp2])
+    std_mp2 = np.std(br_select[i_mp2])
     df_meas['mp2 std [g]'].iloc[i] = max(std_mp2, w_resolution)
     
     # identify the final time of gravimetry measurement
