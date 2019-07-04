@@ -6,6 +6,7 @@ Created on Thu Jun 13 10:44:09 2019
 """
 
 import numpy as np
+import pandas as pd
 
 from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d
@@ -72,7 +73,7 @@ def compute_gas_mass(i, p_arr, p_set_arr, df_meas, bp_arr, br_arr, t_grav,
     # subtract the balance reading under vacuum
     w_gas_app = br_eq - br_eq_0
     # compute the buoyancy correction (approximate volume of sample by equilibrium value) [g]
-    buoyancy = rho_gas(p_set)*(df_meas['sample volume [mL]'].values[i] + v_ref_he)
+    buoyancy = rho_co2(p_set)*(df_meas['sample volume [mL]'].values[i] + v_ref_he)
     # correct for buoyancy to get the true mass of the sample
     w_gas_act = w_gas_app + buoyancy
     
@@ -94,8 +95,8 @@ def convert_time(date, time):
             Time since start
     """
     # Extract the various units of time
-    dy = np.array([int(d[2:4]) for d in date])
-    mo = np.array([int(d[:1]) for d in date])
+    mo = np.array([int(d[:d.find('/')]) for d in date])
+    dy = np.array([int(d[d.find('/')+1:d.find('/')+3]) for d in date])
     hr = np.array([int(t[:t.find(':')]) for t in time])
     mi = np.array([int(t[t.find(':')+1:t.find(':')+3]) for t in time])
     sc = np.array([int(t[t.find(':')+4:]) for t in time])
@@ -129,7 +130,8 @@ def extrapolate_equilibrium(t, m, maxfev=800, p0=(-0.01, -1E-4, 0.01)):
     return m_eq
 
 
-def get_inds_for_curr_p(p_arr, p_set, p_thresh_frac, last_bound, small_window_reduction=0.25):
+def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0, 
+                        window_reduction=0.25, min_window=1):
     """
     Returns the indices of the data arrays corresponding to the current pressure
     step (p_set).
@@ -146,58 +148,95 @@ def get_inds_for_curr_p(p_arr, p_set, p_thresh_frac, last_bound, small_window_re
         small_window_reduction : float
             fraction by which p_thresh_frac is reduced for smaller window after
             averaging p in current window, used to remove outliers
+        min_window : int
+            minimum width of pressure window [kPa]
         
     Returns :
-        i_p : array of ints
-            Array of indices corresponding to the current pressure set point.
-    """
+        i0, i1 : ints
+            Indices corresponding to the first and last data points for pressure set point.
+    """    
+    # remove data from previous pressures
+    p_arr = p_arr[last_bound:]
+    
     # get indices of pressures within threshold of set point
-    in_p_window = np.abs(p_set - p_arr) <= p_thresh_frac*p_set
+    # (for nonzero window at p = 0, at one kPa)
+    in_window = np.abs(p_set - p_arr) <= p_thresh_frac*p_set + min_window
     # identify bounds of regions with correct pressure
-    possible_bounds = np.where(np.logical_xor(in_p_window[1:], in_p_window[:-1]))[0] + 1 # + 1 to make up for shifting
-    # select the first pair of bounds after last upper bound
-    # this prevents selection of adsorption during desorption and vice-versa
-    i_p_bounds = possible_bounds[possible_bounds > last_bound][:2]
-    # store the upper bound of the last set of bounds
-#    last_bound = i_p_bounds[-1]
+    bit_boundaries = np.logical_xor(in_window[1:], in_window[:-1])
+    possible_bounds = np.where(bit_boundaries)[0] + 1 # + 1 to make up for shifting
+    # select the first pair of bounds
+    # this prevents selection of data points from desorption step if it has the
+    # same set pressure
+    i0_coarse = possible_bounds[0]
+    if len(possible_bounds) > 1:
+        i1_coarse = possible_bounds[1]
     # if you reach the end of the data set, such that the pressure ends on the
     # current pressure, append last index
-    if len(i_p_bounds) == 1:
-        i_p_bounds = np.concatenate((i_p_bounds, np.array([len(p_arr)-1])))
-    # indices are those between the bounds
-    i_p = np.arange(i_p_bounds[0], i_p_bounds[1])
-    
+    else:
+        i1_coarse = len(p_arr) - 1
+        
     # average all the points in the current pressure step
-    # because there are so many data points, the outliers will be "drowned out"
-    # then take the points that are within a smaller threshold of the average
-    p_curr = p_arr[i_p]
+    # because there are so many data points, the outliers will be "drowned out."
+    # Then take the points that are within a smaller threshold of the average
+    p_curr = p_arr[i0_coarse:i1_coarse]
     p_mean = np.mean(p_curr)
-    in_small_p_window = np.abs(p_mean - p_arr) <= p_thresh_frac*p_mean*small_window_reduction
-    # identify bounds of regions with correct pressure
-    possible_bounds = np.where(np.logical_xor(in_small_p_window[1:], in_small_p_window[:-1]))[0] + 1 # + 1 to make up for shifting
-    # select the first pair of bounds after last upper bound
-    # this prevents selection of adsorption during desorption and vice-versa
-    i_p_bounds = possible_bounds[possible_bounds > last_bound][:2]
-    # store the upper bound of the last set of bounds
-    last_bound = i_p_bounds[-1]
-    # if you reach the end of the data set, such that the pressure ends on the
-    # current pressure, append last index
-    if len(i_p_bounds) == 1:
-        i_p_bounds = np.concatenate((i_p_bounds, np.array([len(p_arr)-1])))
-    # indices are those between the bounds
-    i_p = np.arange(i_p_bounds[0], i_p_bounds[1])
+    inds_small_window = np.where(np.abs(p_mean-p_curr) <= 
+                                 p_thresh_frac*p_set*window_reduction + min_window)[0]
+    i0_small_window = inds_small_window[0]
+    i1_small_window = inds_small_window[-1]
+    _, inds_accepted = reject_outliers(np.diff(p_curr[i0_small_window:i1_small_window]),
+                                            return_inds=True)
+    # because we cut the pressure array multiple times, the indices are shifted
+    # down, so we must shift them back up to get the true indices for the current pressure
+    offset = last_bound + i0_coarse + i0_small_window
+    i0 = inds_accepted[0] + offset
+    i1 = inds_accepted[-1] + offset
     
-    return i_p, last_bound
+    return i0, i1
+
+
+def cut_ends(data, thresh):
+    """
+    ASSUMPTIONS:
+        -User does not want to cut the data from the first to third quartiles.
+    """
+    # extract indices of quarter, halfway, and three-quarters through data
+    i1 = int(len(data)/4)
+    i2 = int(len(data)/2)
+    i3 = int(len(data)*3/4)
+    # check if data is generally increasing or decreasing
+    is_increasing = (data[i3] - data[i1]) > 0
+    # check that this is generally true
+    if (is_increasing != (data[i2] - data[i1])) or (is_increasing != (data[i3] - data[i2])):
+        print("Quartiles of data are not monotonic (dataproc.cut_ends()).")
+    # during adsorption, remove sections of decreasing weight measurements
+    if is_increasing:
+        i_start = np.where(np.diff(data[:i1]) > thresh)[0][0]
+        i_end = np.where(np.diff(data[i3:]) < -thresh)[0][0] + i3
+    # during desorption, remove sections of increasing weight measurements
+    else:
+        i_start = np.where(np.diff(mp1[:i_halfway]) > w_thresh)[0]
+        i_end = np.where(np.diff(mp1[i_halfway:]) > w_thresh)[0] + i_halfway
+    # check if any data points should be cut off from the beginning
+    if len(i_start)==0:
+        i_start = 0
+    else:
+        i_start = i_start[-1] + 2
+    # check if any data points should be cut off from the end
+    if len(i_end)==0:
+        i_end = -1
+    else:
+        i_end = i_end[0]
+                
+    i_start += 1 
+    
+    # cut one more point because the first point always seems off the fit
+    return i_start, i_end
 
 
 def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
     """
     """
-    def second_deriv_5pt(data):
-        """
-        """
-        return 1/12*(-data[4:] +16*data[3:-1] -30*data[2:-2] +16*data[1:-3] - data[:-4])
-    
     # estimate the halfway point in the data set
     i_halfway = int(len(mp1)/2)
     # during adsorption, remove sections of decreasing weight measurements
@@ -256,19 +295,92 @@ def get_mp1_interval_2nd_deriv(mp1, is_adsorbing, w_thresh=0.00005):
         
     return i_start, i_end
         
+  
+def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_set_arr,
+              hdr_adsa=1, hdr_grav=3, 
+              columns=['p set [kPa]', 'p actual [kPa]', 'zero [g]', 'zero std [g]', 
+                       'mp1 [g]', 'mp1 std [g]', 'mp2 [g]', 'mp2 std [g]', 
+                       'M_0 (extrap) [g]', 'M_0 (prev) [g]', 
+                       'M_infty (extrap) [g]', 'M_infty (final) [g]',
+                       'if tension [mN/m]', 'if tension std [mN/m]', 
+                       'drop volume [uL]', 'drop volume std [uL]', 
+                       'sample volume [mL]', 'dissolved gas balance reading [g]',
+                       'buoyancy correction [g]', 'actual weight of dissolved gas [g]',
+                       'solubility [w/w]', 'specific volume [mL/g]', 
+                       'diffusivity (sqrt) [cm^2/s]', 'diffusivity (exp) [cm^2/s]',
+                       'diffusion time constant [s]']):
+    """
+    Load gravimetry and ADSA data for pre-processing.
+    PARAMETERS:
         
+    RETURNS:
+        
+    """
+    # initialize arrys to store interfacial tension [mN/m], drop volume [uL],
+    # and time [s] measured by ADSA system
+    if_tension = np.array([])
+    v_drop = np.array([])
+    t_adsa = np.array([])
+    
+    # extract data from all data files for the pendant drop (ADSA)
+    for i in range(len(adsa_file_list)):
+        adsa_file = adsa_file_list[i]
+        df_adsa = pd.read_csv(adsa_folder + adsa_file, header=hdr_adsa)
+        if_tension = np.concatenate((if_tension, df_adsa['IFT'].values))
+        v_drop = np.concatenate((v_drop, df_adsa['PndVol'].values))
+        t_adsa = np.concatenate((t_adsa, df_adsa['Secs.1'].values + adsa_t0_list[i]))
+    
+    # TODO validate ADSA data
+    # interfacial tension between 3 and 72 mN/m
+    # drop volume between 1 and 10 uL
+    # time between 0 and max(t_grav)
+    
+    # load rubotherm data and process
+    df = pd.read_csv(grav_file_path, header=hdr_grav)
+    # Extract time in terms of seconds after start
+    date_raw = df['DATE'].values
+    time_raw = df['TIME'].values
+    t_grav = convert_time(date_raw, time_raw)
+    # shift time so initial time is zero to match interfacial tension time
+    t_grav -= t_grav[0]
+    
+    # load rubotherm data in sync with time
+    br_arr = df['WEITGHT(g)'].values
+    bp_arr = df['BALANCE POSITION'].values
+    p_arr = df['Now Pressure(kPa)'].values
+    
+    # TODO validate rubotherm data
+    # are there at least 120 data points per pressure?
+    
+    # initialize data frame to store data
+    df_meas = pd.DataFrame(columns=columns)
+    df_meas['p set [kPa]'] = p_set_arr
+
+    return df_meas, br_arr, bp_arr, p_arr, t_grav, if_tension, v_drop, t_adsa
+  
+    
 def reject_outliers(data, m=2, min_std=0.1, return_inds=False):
     """from https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list"""
-    inds = np.logical_and(abs(data - np.mean(data)) < m * max(np.std(data), min_std), \
+    # get indices of data that are not outliers or nans
+    is_not_outlier = np.logical_and(abs(data - np.mean(data)) < m * max(np.std(data), min_std), \
         np.logical_not(np.isnan(data)))
-    result = data[inds]
+    # cut out outliers and nans from data
+    result = data[is_not_outlier]
+    # count outliers
+    num_outliers = len(result) < len(data)
+    # announce if outliers were rejected
+    if num_outliers > 0:
+        print("Rejected %d outliers." % (num_outliers) )
+        
+    # return indices?
     if return_inds:
+        inds = np.where(is_not_outlier)[0]
         return result, inds
     else:
         return result
 
 
-def rho_gas(p):
+def rho_co2(p):
     """
     Returns an interpolation function for the density of carbon dioxide
     according to the equation of state (data taken from
@@ -303,14 +415,14 @@ def square_root_1param(t, a):
     return a*t**(0.5)
 
 
-def store_grav_adsa(df_meas, i, i_p, t_grav, t_adsa, br_arr, bp_arr, if_tension, 
-                drop_vol, n_adsa):
+def store_grav_adsa(df_meas, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr, if_tension, 
+                v_drop, n_adsa, w_resolution=1E-5):
     """
     """
     # extract data for current pressure
-    t_select = t_grav[i_p]
-    br_select = br_arr[i_p]
-    bp_select = bp_arr[i_p]
+    t_select = t_grav[i_p0:i_p1]
+    br_select = br_arr[i_p0:i_p1]
+    bp_select = bp_arr[i_p0:i_p1]
     # indices for different measuring positions at end of measurement
     # 'zero' is tare; 'mp1' is tare plus the hook, crucible, and sample; 'mp2' also includes mass of cylinder
     i_zero = np.where(bp_select==1)[0]
@@ -321,11 +433,14 @@ def store_grav_adsa(df_meas, i, i_p, t_grav, t_adsa, br_arr, bp_arr, if_tension,
     # get averages and stdev of each balance reading (br), rejecting obvious
     # outliers (in case only part of the mass is lifted)
     df_meas['zero [g]'].iloc[i] = np.mean(reject_outliers(br_select[i_zero]))
-    df_meas['zero std [g]'].iloc[i] = np.std(reject_outliers(br_select[i_zero]))
+    std_zero = np.std(reject_outliers(br_select[i_zero]))
+    df_meas['zero std [g]'].iloc[i] = max(std_zero, w_resolution)
     df_meas['mp1 [g]'].iloc[i] = np.mean(reject_outliers(br_select[i_mp1_f]))
-    df_meas['mp1 std [g]'].iloc[i] = np.std(reject_outliers(br_select[i_mp1_f]))
+    std_mp1 = np.std(reject_outliers(br_select[i_mp1_f]))
+    df_meas['mp1 std [g]'].iloc[i] = max(std_mp1, w_resolution)
     df_meas['mp2 [g]'].iloc[i] = np.mean(reject_outliers(br_select[i_mp2]))
-    df_meas['mp2 std [g]'].iloc[i] = np.std(reject_outliers(br_select[i_mp2]))
+    std_mp2 = np.std(reject_outliers(br_select[i_mp2]))
+    df_meas['mp2 std [g]'].iloc[i] = max(std_mp2, w_resolution)
     
     # identify the final time of gravimetry measurement
     t_f = t_select[-1]
@@ -337,13 +452,13 @@ def store_grav_adsa(df_meas, i, i_p, t_grav, t_adsa, br_arr, bp_arr, if_tension,
         if_mean = np.mean(if_tension[i_adsa])
         print('Interfacial tension = %f mN/m.' % if_mean)
         # drop volume [uL]
-        drop_vol_mean = np.mean(drop_vol[i_adsa])
-        print('Drop volume = %f uL.' % drop_vol_mean)
+        v_drop_mean = np.mean(v_drop[i_adsa])
+        print('Drop volume = %f uL.' % v_drop_mean)
         # store data
         df_meas['if tension [mN/m]'].iloc[i] = if_mean
         df_meas['if tension std [mN/m]'].iloc[i] = np.std(if_tension[i_adsa])
-        df_meas['drop volume [uL]'].iloc[i] = drop_vol_mean
-        df_meas['drop volume std [uL]'].iloc[i] = np.std(drop_vol[i_adsa])
+        df_meas['drop volume [uL]'].iloc[i] = v_drop_mean
+        df_meas['drop volume std [uL]'].iloc[i] = np.std(v_drop[i_adsa])
     except:
         print('no adsa data for current pressure.')
         

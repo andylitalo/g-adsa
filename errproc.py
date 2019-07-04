@@ -15,19 +15,12 @@ def norm(elements):
     result = 0
     for i in range(len(elements)):
         result += (elements[i])**2
-    
+        print(len(result))
+
     print(result)
-    try:
-        length = len(result)
-        print(length)
-        i_nan = np.isnan(result)
-        print(i_nan)
-        result[i_nan] = 0
-    except:
-        print('removed a nan.')
-    
+    result = np.sqrt(result)
     print(result)
-    return np.sqrt(result)
+    return result
 
 def error_spec_vol(spec_vol, v_samp, w_buoy, w_gas_act, w_poly, v_drop, s_v_drop, \
                    rho_co2, s_rho_co2, w_samp_ref, s_w_samp_ref, \
@@ -37,6 +30,7 @@ def error_spec_vol(spec_vol, v_samp, w_buoy, w_gas_act, w_poly, v_drop, s_v_drop
     """
     Estimates error in specific volume measurement using error propagation.
     """
+    n = len(spec_vol)
     # uncertainty in volume of sample at reference point
     s_v_samp_ref = v_samp_ref*norm( (s_w_samp_ref/w_samp_ref, s_rho_samp_ref/ \
                                      rho_samp_ref) )
@@ -47,8 +41,9 @@ def error_spec_vol(spec_vol, v_samp, w_buoy, w_gas_act, w_poly, v_drop, s_v_drop
     s_w_buoy = w_buoy * norm( (s_rho_co2/rho_co2, s_v_samp/(v_samp + v_ref), \
                                s_v_ref/(v_samp + v_ref)) )
     # error in balance reading
-    s_br = norm( (s_mp1, s_zero) )
-    s_br_0 = s_br[np.logical_not(np.isnan(s_br))][0]
+    s_br = norm( (s_mp1, s_zero) )*np.ones([n])
+    s_br_0 = s_br[np.logical_not(np.isnan(s_br))][0]*np.ones([n])
+
     # uncertainty in measurement of mass of gas
     s_w_gas_act = norm( (s_br, s_br_0, s_w_buoy) )
     # uncertainty in estimate of dry mass of polyol [g]
