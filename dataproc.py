@@ -94,9 +94,17 @@ def convert_time(date, time):
         time_passed : array of ints
             Time since start
     """
+    # Determine the character used to separate the values in the date entries
+    if '/' in date[0]:
+        d_sep = '/'
+    elif '-' in date[0]:
+        d_sep = '-'
+    else:
+        print('date in unrecognized format by dataproc.convert_time.')
+        
     # Extract the various units of time
-    mo = np.array([int(d[:d.find('/')]) for d in date])
-    dy = np.array([int(d[d.find('/')+1:d.find('/')+3]) for d in date])
+    mo = np.array([int(d[:d.find(d_sep)]) for d in date])
+    dy = np.array([int(d[d.find(d_sep)+1:d.find(d_sep)+3]) for d in date])
     hr = np.array([int(t[:t.find(':')]) for t in time])
     mi = np.array([int(t[t.find(':')+1:t.find(':')+3]) for t in time])
     sc = np.array([int(t[t.find(':')+4:]) for t in time])
@@ -307,8 +315,8 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
                        'drop volume [uL]', 'drop volume std [uL]', 
                        'sample volume [mL]', 'dissolved gas balance reading [g]',
                        'buoyancy correction [g]', 'actual weight of dissolved gas [g]',
-                       'solubility [w/w]', 'specific volume [mL/g]', 
-                       'specific volume error [mL/g]',
+                       'solubility [w/w]', 'solubility error [w/w]',
+                       'specific volume [mL/g]',  'specific volume error [mL/g]',
                        'diffusivity (sqrt) [cm^2/s]', 'diffusivity (exp) [cm^2/s]',
                        'diffusion time constant [s]']):
     """

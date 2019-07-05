@@ -14,7 +14,7 @@ import time
 
 # parameters
 get_location = False
-n_ims =  # number of images to analyze
+n_ims = 100 # number of images to analyze
 d = 0 # duration of moving mouse to click
 sleep = 0.1
 pyautogui.FAILSAFE = True # fail-safe by moving mouse to upper left
