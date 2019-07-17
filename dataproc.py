@@ -13,12 +13,12 @@ from scipy.interpolate import interp1d
 from scipy.signal import medfilt
 
 
-def compute_D_exp(i, diam_cruc, df_meas, b):
+def compute_D_exp(i, diam_cruc, df, b):
     """
     """
     # estimate sample thickness based on estimated volume and cross-sectional area of crucible
     area_cruc = np.pi*(diam_cruc/2)**2 # area [cm^2]
-    v_samp = df_meas['sample volume [mL]'].values[i] # sample volume [mL]
+    v_samp = df['sample volume [mL]'].values[i] # sample volume [mL]
     h_samp = v_samp / area_cruc # height of sample [cm]
     # compute diffusivity using formula derived from Crank 1956 eqn 10.168 [cm^2/s]
     D_exp = -4*h_samp**2/np.pi**2*b
@@ -27,21 +27,21 @@ def compute_D_exp(i, diam_cruc, df_meas, b):
     
 
 def compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc, 
-                        df_meas):
+                        df):
     """
     """
     # Perform exponential fit to estimate the saturation mass
     w_gas_inf = extrapolate_equilibrium(t_mp1[:-n_pts_exp], w_gas_act[:-n_pts_exp], maxfev=maxfev)
     # estimate sample thickness based on estimated volume and cross-sectional area of crucible
     area_cruc = np.pi*(diam_cruc/2)**2 # area [cm^2]
-    v_samp = df_meas['sample volume [mL]'].values[i] # sample volume [mL]
+    v_samp = df['sample volume [mL]'].values[i] # sample volume [mL]
     h_samp = v_samp / area_cruc # height of sample [cm]
     # compute mean diffusivity using formula from Vrentas et al. 1977 (found in Pastore et al. 2011 as well) [cm^2/s]
     D_sqrt = np.pi*h_samp**2/4*(a/w_gas_inf)**2
 
     return D_sqrt
 
-def compute_gas_mass(i, p_arr, p_set_arr, df_meas, bp_arr, br_arr, t_grav, 
+def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, t_grav, 
                      p_thresh_frac, last_bound, v_ref_he):
     """
     """
@@ -67,17 +67,17 @@ def compute_gas_mass(i, p_arr, p_set_arr, df_meas, bp_arr, br_arr, t_grav,
     t_mp1 = t_mp1[i_start:i_end]
     
     # estimate the mass of adsorbed gas
-    zero = df_meas['zero [g]'].values[i]
+    zero = df['zero [g]'].values[i]
     br_eq = mp1 - zero # balance reading (not corrected for buoyancy) [g]
     br_eq_0 = br_eq[0] # vacuum balance reading [g]
     # subtract the balance reading under vacuum
     w_gas_app = br_eq - br_eq_0
     # compute the buoyancy correction (approximate volume of sample by equilibrium value) [g]
-    buoyancy = rho_co2(p_set)*(df_meas['sample volume [mL]'].values[i] + v_ref_he)
+    buoyancy = rho_co2(p_set, T)*(df['sample volume [mL]'].values[i] + v_ref_he)
     # correct for buoyancy to get the true mass of the sample
     w_gas_act = w_gas_app + buoyancy
     
-    return w_gas_act, t_mp1, df_meas, i_p1, is_adsorbing
+    return w_gas_act, t_mp1, df, i_p1, is_adsorbing
 
 
 def convert_time(date, time):
@@ -203,43 +203,17 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
     return i0, i1
 
 
-def cut_ends(data, thresh):
+def get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa):
     """
-    ASSUMPTIONS:
-        -User does not want to cut the data from the first to third quartiles.
     """
-    # extract indices of quarter, halfway, and three-quarters through data
-    i1 = int(len(data)/4)
-    i2 = int(len(data)/2)
-    i3 = int(len(data)*3/4)
-    # check if data is generally increasing or decreasing
-    is_increasing = (data[i3] - data[i1]) > 0
-    # check that this is generally true
-    if (is_increasing != (data[i2] - data[i1])) or (is_increasing != (data[i3] - data[i2])):
-        print("Quartiles of data are not monotonic (dataproc.cut_ends()).")
-    # during adsorption, remove sections of decreasing weight measurements
-    if is_increasing:
-        i_start = np.where(np.diff(data[:i1]) > thresh)[0][0]
-        i_end = np.where(np.diff(data[i3:]) < -thresh)[0][0] + i3
-    # during desorption, remove sections of increasing weight measurements
-    else:
-        i_start = np.where(np.diff(mp1[:i_halfway]) > w_thresh)[0]
-        i_end = np.where(np.diff(mp1[i_halfway:]) > w_thresh)[0] + i_halfway
-    # check if any data points should be cut off from the beginning
-    if len(i_start)==0:
-        i_start = 0
-    else:
-        i_start = i_start[-1] + 2
-    # check if any data points should be cut off from the end
-    if len(i_end)==0:
-        i_end = -1
-    else:
-        i_end = i_end[0]
-                
-    i_start += 1 
+    # extract data for current pressure
+    t_select = t_grav[i_p0:i_p1]
+    # identify the final time of gravimetry measurement
+    t_f = t_select[-1]
+    # get indices of last data points receding final time of gravimetry
+    inds = np.where(t_adsa <= t_f)[0][-n_adsa:]
     
-    # cut one more point because the first point always seems off the fit
-    return i_start, i_end
+    return inds
 
 
 def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
@@ -271,41 +245,41 @@ def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
     # cut one more point because the first point always seems off the fit
     return i_start, i_end
 
-
-def get_mp1_interval_2nd_deriv(mp1, is_adsorbing, w_thresh=0.00005):
-    """
-    """
-    mp1 = medfilt(mp1, kernel_size=min(21, 2*(len(mp1)/2)+1))
-    # estimate the halfway point in the data set
-    i_halfway = int(len(mp1)/2)
-    d_halfway = mp1[i_halfway+1] - mp1[i_halfway]
-    # during adsorption, remove sections of decreasing weight measurements
-    if is_adsorbing:
-        i_start = np.where(np.diff(mp1[:i_halfway]) < 0.2*d_halfway)[0]
-        i_end = np.where(-np.diff(mp1[i_halfway:]) > w_thresh)[0] + i_halfway
-    # during desorption, remove sections of increasing weight measurements
-    else:
-        i_start = np.where(-np.diff(mp1[:i_halfway]) < -0.2*d_halfway)[0]
-        i_end = np.where(np.diff(mp1[i_halfway:]) > w_thresh)[0] + i_halfway
-    # check if any data points should be cut off from the beginning
-    if len(i_start)==0:
-        i_start = 0
-    else:
-        i_start = i_start[-1] + 2
-    # check if any data points should be cut off from the end
-    if len(i_end)==0:
-        i_end = -1
-    else:
-        i_end = i_end[0] 
-        
-    print('i_start = {0}, i_end = {1}, i_halfway = {2}'.format(i_start, i_end,
-          i_halfway))
-        
-    return i_start, i_end
+#
+#def get_mp1_interval_2nd_deriv(mp1, is_adsorbing, w_thresh=0.00005):
+#    """
+#    """
+#    mp1 = medfilt(mp1, kernel_size=min(21, 2*(len(mp1)/2)+1))
+#    # estimate the halfway point in the data set
+#    i_halfway = int(len(mp1)/2)
+#    d_halfway = mp1[i_halfway+1] - mp1[i_halfway]
+#    # during adsorption, remove sections of decreasing weight measurements
+#    if is_adsorbing:
+#        i_start = np.where(np.diff(mp1[:i_halfway]) < 0.2*d_halfway)[0]
+#        i_end = np.where(-np.diff(mp1[i_halfway:]) > w_thresh)[0] + i_halfway
+#    # during desorption, remove sections of increasing weight measurements
+#    else:
+#        i_start = np.where(-np.diff(mp1[:i_halfway]) < -0.2*d_halfway)[0]
+#        i_end = np.where(np.diff(mp1[i_halfway:]) > w_thresh)[0] + i_halfway
+#    # check if any data points should be cut off from the beginning
+#    if len(i_start)==0:
+#        i_start = 0
+#    else:
+#        i_start = i_start[-1] + 2
+#    # check if any data points should be cut off from the end
+#    if len(i_end)==0:
+#        i_end = -1
+#    else:
+#        i_end = i_end[0] 
+#        
+#    print('i_start = {0}, i_end = {1}, i_halfway = {2}'.format(i_start, i_end,
+#          i_halfway))
+#        
+#    return i_start, i_end
         
   
 def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_set_arr,
-              hdr_adsa=1, hdr_grav=3, 
+              hdr_adsa=1, hdr_grav=3, load_if_tension=False,
               columns=['p set [kPa]', 'p actual [kPa]', 'p std [kPa]',
                        'zero [g]', 'zero std [g]', 
                        'mp1 [g]', 'mp1 std [g]', 'mp2 [g]', 'mp2 std [g]', 
@@ -336,14 +310,10 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
     for i in range(len(adsa_file_list)):
         adsa_file = adsa_file_list[i]
         df_adsa = pd.read_csv(adsa_folder + adsa_file, header=hdr_adsa)
-        if_tension = np.concatenate((if_tension, df_adsa['IFT'].values))
         v_drop = np.concatenate((v_drop, df_adsa['PndVol'].values))
         t_adsa = np.concatenate((t_adsa, df_adsa['Secs.1'].values + adsa_t0_list[i]))
-    
-    # TODO validate ADSA data
-    # interfacial tension between 3 and 72 mN/m
-    # drop volume between 1 and 10 uL
-    # time between 0 and max(t_grav)
+        if load_if_tension:
+            if_tension = np.concatenate((if_tension, df_adsa['IFT'].values))
     
     # load rubotherm data and process
     df = pd.read_csv(grav_file_path, header=hdr_grav)
@@ -358,16 +328,21 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
     br_arr = df['WEITGHT(g)'].values
     bp_arr = df['BALANCE POSITION'].values
     p_arr = df['Now Pressure(kPa)'].values
+    # set negative values to 0 to make them physical and prevent errors later
+    p_arr[p_arr < 0] = 0
     
     # TODO validate rubotherm data
     # are there at least 120 data points per pressure?
     
     # initialize data frame to store data
-    df_meas = pd.DataFrame(columns=columns)
-    df_meas['p set [kPa]'] = p_set_arr
+    df = pd.DataFrame(columns=columns)
+    df['p set [kPa]'] = p_set_arr
 
-    return df_meas, br_arr, bp_arr, p_arr, t_grav, if_tension, v_drop, t_adsa
-  
+    if load_if_tension:
+        return df, br_arr, bp_arr, p_arr, t_grav, if_tension, v_drop, t_adsa
+    else:
+        return df, br_arr, bp_arr, p_arr, t_grav, v_drop, t_adsa
+
     
 def reject_outliers(data, m=2, min_std=0.1, return_inds=False):
     """from https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list"""
@@ -390,7 +365,7 @@ def reject_outliers(data, m=2, min_std=0.1, return_inds=False):
         return result
 
 
-def rho_co2(p):
+def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
     """
     Returns an interpolation function for the density of carbon dioxide
     according to the equation of state (data taken from
@@ -399,18 +374,21 @@ def rho_co2(p):
     Will perform the interpolation if an input pressure p is given.
     PARAMETERS:
         p : int (or array of ints)
-            pressure in kPa of CO2 @ 30.5 C
+            pressure in kPa of CO2
+        T : float
+            temperature in Celsius (only to one decimal place)
+        eos_file_hdr : string
+            File header for equation of state data table
     
     RETURNS:
         rho : same as p
             density in g/mL of co2 @ 30.5 C 
     """
-
-    p_co2_kpa = 1E2*np.arange(0,75,5)
-    # density in g/mL (at 30.5 C)
-    rho_co2 = np.array([0, 8.9277, 18.316, 28.229, 38.747, 49.971,
-                        62.032, 75.103, 89.425, 105.34, 123.37,144.38,
-                        169.97, 	203.77, 258.74])/1000
+    dec, integ = np.modf(T)
+    T_tag = '%d-%dC' % (integ, 10*dec)
+    df_eos = pd.read_csv(eos_file_hdr + T_tag + ext, header=0)
+    p_co2_kpa = df_eos['Pressure (kPa)'].to_numpy(dtype=float)
+    rho_co2 = df_eos['Density (g/ml)'].to_numpy(dtype=float)
     f_rho = interp1d(p_co2_kpa, rho_co2, kind="cubic")
 
     return f_rho(p)
@@ -425,12 +403,66 @@ def square_root_1param(t, a):
     return a*t**(0.5)
 
 
-def store_grav_adsa(df_meas, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr, if_tension, 
+def store_densities(df_thermo, adsa_folder, adsa_file, t0, t_grav, p_arr, T,
+                    hdr_adsa=1):
+    """
+    Saves densities of CO2 atmosphere and sample for each data point measured
+    with ADSA.
+    PARAMETERS:
+        df_thermo : pandas dataframe
+            Dataframe of thermodynamic data computed with G-ADSA analysis 
+            (needs specific volume)
+        adsa_folder : string
+            name of folder with ADSA data file
+        adsa_file : string
+            name of ADSA data file (.csv)
+        t0 : float
+            Time between start of gravimetry and start of ADSA
+        t_grav : numpy array of floats
+            Times at which gravimetry data were recorded relative to start of
+            gravimetry [s]
+        p_arr : numpy array of floats
+            Pressures measured during gravimetry measurements [kPa]
+        T : float (to one decimal place)
+            Set-value of temperature
+        hdr_adsa : int
+            Row of ADSA data file to use as header
+    
+    RETURNS:
+        df_densities : pandas dataframe
+            Dataframe of time, CO2 density, and sample density at each ADSA
+            measurement
+    """
+    # initialize dataframe of densities
+    df_densities = pd.DataFrame(columns=['Time ADSA [s]', 'Time Gravimetry [s]',
+                                         'CO2 Density [g/mL]', 
+                                         'Sample Density [g/mL]'])
+    # extract ADSA time
+    df_adsa = pd.read_csv(adsa_folder + adsa_file, header=hdr_adsa)
+    t_adsa = df_adsa['Secs.1'].to_numpy(dtype=float)
+    df_densities['Time ADSA [s]'] = t_adsa
+    # Get indices of gravimetry data closest to ADSA measurements
+    inds_grav = [np.argmin(np.abs(t_grav - (t_adsa[i] + t0))) for i in range(len(t_adsa))]
+    # store time from gravimetry measurements
+    df_densities['Time Gravimetry [s]'] = t_grav[inds_grav]
+    # get pressures at each ADSA data point
+    p_adsa = p_arr[inds_grav]
+    # get CO2 density
+    df_densities['CO2 Density [g/mL]'] = rho_co2(p_adsa, T)
+    # get indices of dataframe of thermodynamic data corresponding to ADSA measurements
+    inds_thermo = [np.argmin(np.abs(df_thermo['p actual [kPa]'].to_numpy(dtype=float) - \
+                                    p_adsa[i])) for i in range(len(p_adsa))]
+    df_densities['Sample Density [g/mL]'] = 1 / df_thermo['specific volume [mL/g]'] \
+                                            .to_numpy(dtype=float)[inds_thermo]
+    
+    return df_densities
+
+
+def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr, 
                 v_drop, n_adsa, w_resolution=1E-5):
     """
     """
     # extract data for current pressure
-    t_select = t_grav[i_p0:i_p1]
     br_select = br_arr[i_p0:i_p1]
     bp_select = bp_arr[i_p0:i_p1]
     # indices for different measuring positions at end of measurement
@@ -445,34 +477,41 @@ def store_grav_adsa(df_meas, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr, if_t
     
     # get averages and stdev of each balance reading (br), rejecting obvious
     # outliers (in case only part of the mass is lifted)
-    df_meas['zero [g]'].iloc[i] = np.mean(br_select[i_zero])
+    df['zero [g]'].iloc[i] = np.mean(br_select[i_zero])
     std_zero = np.std(br_select[i_zero])
-    df_meas['zero std [g]'].iloc[i] = max(std_zero, w_resolution)
-    df_meas['mp1 [g]'].iloc[i] = np.mean(br_select[i_mp1_f])
+    df['zero std [g]'].iloc[i] = max(std_zero, w_resolution)
+    df['mp1 [g]'].iloc[i] = np.mean(br_select[i_mp1_f])
     std_mp1 = np.std(reject_outliers(br_select[i_mp1_f]))
-    df_meas['mp1 std [g]'].iloc[i] = max(std_mp1, w_resolution)
-    df_meas['mp2 [g]'].iloc[i] = np.mean(br_select[i_mp2])
+    df['mp1 std [g]'].iloc[i] = max(std_mp1, w_resolution)
+    df['mp2 [g]'].iloc[i] = np.mean(br_select[i_mp2])
     std_mp2 = np.std(br_select[i_mp2])
-    df_meas['mp2 std [g]'].iloc[i] = max(std_mp2, w_resolution)
-    
-    # identify the final time of gravimetry measurement
-    t_f = t_select[-1]
+    df['mp2 std [g]'].iloc[i] = max(std_mp2, w_resolution)
+
     # get last indices of ADSA data points before final time of gravimetry measurement for synchronization (if possible)
     try:
         # indices of corresponding ADSA data points
-        i_adsa = np.where(t_adsa <= t_f)[0][-n_adsa:]
-        # interfacial tension [mN/m]
-        if_mean = np.mean(if_tension[i_adsa])
-        print('Interfacial tension = %f mN/m.' % if_mean)
+        i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa)
         # drop volume [uL]
         v_drop_mean = np.mean(v_drop[i_adsa])
         print('Drop volume = %f uL.' % v_drop_mean)
-        # store data
-        df_meas['if tension [mN/m]'].iloc[i] = if_mean
-        df_meas['if tension std [mN/m]'].iloc[i] = np.std(if_tension[i_adsa])
-        df_meas['drop volume [uL]'].iloc[i] = v_drop_mean
-        df_meas['drop volume std [uL]'].iloc[i] = np.std(v_drop[i_adsa])
+        df['drop volume [uL]'].iloc[i] = v_drop_mean
+        df['drop volume std [uL]'].iloc[i] = np.std(v_drop[i_adsa])
     except:
         print('no adsa data for current pressure.')
         
-    return df_meas
+    return df
+
+
+def store_if_tension(if_tension, df, i, i_p0, i_p1, t_grav, t_adsa, n_adsa):
+    """
+    """
+    # indices of corresponding ADSA data points
+    i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa) 
+    # interfacial tension [mN/m]
+    if_mean = np.mean(if_tension[i_adsa])
+    print('Interfacial tension = %f mN/m.' % if_mean)
+    # store data
+    df['if tension [mN/m]'].iloc[i] = if_mean
+    df['if tension std [mN/m]'].iloc[i] = np.std(if_tension[i_adsa])
+    
+    return df
