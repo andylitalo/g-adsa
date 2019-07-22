@@ -11,9 +11,9 @@ import time
 
 # parameters
 get_location = False
-n_ims = 501
+n_ims = 73
 duration = 0.2
-long_sleep = 11
+long_sleep = 12
 short_sleep = 0.2
 save_period = 10
 

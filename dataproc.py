@@ -21,7 +21,7 @@ def compute_D_exp(i, diam_cruc, df, b):
     v_samp = df['sample volume [mL]'].values[i] # sample volume [mL]
     h_samp = v_samp / area_cruc # height of sample [cm]
     # compute diffusivity using formula derived from Crank 1956 eqn 10.168 [cm^2/s]
-    D_exp = -4*h_samp**2/np.pi**2*b
+    D_exp = -(4*h_samp**2/np.pi**2)*b
 
     return D_exp
     
@@ -31,7 +31,7 @@ def compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc,
     """
     """
     # Perform exponential fit to estimate the saturation mass
-    w_gas_inf = extrapolate_equilibrium(t_mp1[:-n_pts_exp], w_gas_act[:-n_pts_exp], maxfev=maxfev)
+    w_gas_inf = df['M_infty (final) [g]'].to_numpy(dtype=float)[i]
     # estimate sample thickness based on estimated volume and cross-sectional area of crucible
     area_cruc = np.pi*(diam_cruc/2)**2 # area [cm^2]
     v_samp = df['sample volume [mL]'].values[i] # sample volume [mL]
@@ -59,12 +59,12 @@ def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, t_grav,
     mp1 = medfilt(br_select[is_mp1], kernel_size=5) # medfilt removes spikes from unstable measurements
     t_mp1 = t_select[is_mp1]
     
-    # Is the sample adsorbing or desorbing gas?
-    is_adsorbing = (p_set_arr[i] - p_set_arr[max(i-1,0)]) >= 0
-    # Cut off data points at the beginning and end from the transition between pressure set points
-    i_start, i_end = get_mp1_interval(mp1, is_adsorbing)
-    mp1 = mp1[i_start:i_end]
-    t_mp1 = t_mp1[i_start:i_end]
+#    # Is the sample adsorbing or desorbing gas?
+#    is_adsorbing = (p_set_arr[i] - p_set_arr[max(i-1,0)]) >= 0
+#    # Cut off data points at the beginning and end from the transition between pressure set points
+#    i_start, i_end = get_mp1_interval(mp1, is_adsorbing)
+#    mp1 = mp1[i_start:i_end]
+#    t_mp1 = t_mp1[i_start:i_end]
     
     # estimate the mass of adsorbed gas
     zero = df['zero [g]'].values[i]
@@ -77,7 +77,7 @@ def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, t_grav,
     # correct for buoyancy to get the true mass of the sample
     w_gas_act = w_gas_app + buoyancy
     
-    return w_gas_act, t_mp1, df, i_p1, is_adsorbing
+    return w_gas_act, t_mp1, df, i_p1
 
 
 def convert_time(date, time):
@@ -397,6 +397,10 @@ def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
 
 def square_root_3param(t, a, b, t0):
     return a*(t-t0)**(0.5) + b
+
+
+def square_root_2param(t, a, b):
+    return a*t**(0.5) + b
 
 
 def square_root_1param(t, a):
