@@ -7,10 +7,15 @@ Created on Thu Jun 13 10:44:09 2019
 
 import numpy as np
 import pandas as pd
+import matplotlib.pyplot as plt
+import csv
+import os
 
 from scipy.optimize import curve_fit
 from scipy.interpolate import interp1d
 from scipy.signal import medfilt
+
+from timedate import TimeDate
 
 
 def compute_D_exp(i, diam_cruc, df, b):
@@ -80,6 +85,120 @@ def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, t_grav,
     return w_gas_act, t_mp1, df, i_p1
 
 
+def compute_t_shift(metadata, i, t_p_interp, p_interp, p_file, date_ref, 
+                    time_ref, dpdt_thresh=10, plot_pressure=True):
+    """
+    Computes number of minutes that the time of a manual experiment must be 
+    shifted to align with known recorded times.
+    """
+    dt = np.diff(t_p_interp)
+    dp = np.diff(p_interp)
+    dpdt = dp/dt
+    if plot_pressure:
+        plt.figure()
+        plt.plot(t_p_interp, p_interp, '.')
+        plt.title(p_file)
+        plt.show()
+    inds_p_change = np.where(np.abs(dpdt) > dpdt_thresh)[0]
+    # if you don't have data before the start of the change in pressure
+    if inds_p_change[0] == 0:
+        # use the time from the end of the pressure step
+        p_step = 1
+        # mark end of pressure step by the first index at which pressure is not changing rapidly
+        inds_not_change = [i not in inds_p_change for i in range(len(dpdt))]
+        i_p_step = np.where(inds_not_change)[0][0]
+    else:
+        # use the time from the beginning of the pressure step
+        p_step = 0
+        # mark beginning of pressure step by the first index at which pressure is changing rapidly
+        inds_change = [i in inds_p_change for i in range(len(dpdt))]
+        i_p_step = np.where(inds_change)[0][0]
+    t_p_step = t_p_interp[i_p_step]
+    date_dp = metadata['date dp'].iloc[i]
+    if p_step:
+        time_dp = metadata['time dp end'].iloc[i]
+    else:
+        time_dp = metadata['time dp start'].iloc[i]
+    time_date_ref = TimeDate()
+    time_date_ref.load_string(date_ref, time_ref)
+    time_date_dp = TimeDate()
+    time_date_dp.load_string(date_dp, time_dp)
+    t_since_ref = TimeDate.diff_min(time_date_ref, time_date_dp)
+    t_shift = t_since_ref - t_p_step
+    
+    return t_shift
+
+
+def concatenate_data(metadata, i, date_ref, time_ref, time_list, date_list, 
+                     t_grav, t_interp, p_interp, p_arr, T_interp, T_arr, 
+                     mp1_interp, br_arr, bp_arr, zero_last=True):
+    """
+    Concatenate data for the creation of an artificial TRD file in the case of
+    manual experiments with G-ADSA.
+    """
+    # initialize TimeDate object to store reference time of experiment
+    time_date_ref = TimeDate()
+    time_date_ref.load_string(date_ref, time_ref)
+    # add list of dates and times
+    for j in range(len(t_interp)):
+        time_date = TimeDate()
+        time_date.load_string(date_ref, time_ref)
+        time_date.add(minute=t_interp[j])
+        time_list += [time_date.get_time_string()]
+        date_list += [time_date.get_date_string()]
+        del time_date
+        
+    # load metadata for zero point
+    time_zero = metadata['time'].iloc[i]
+    date_zero = metadata['date'].iloc[i]
+    p_zero = metadata['p actual [kPa]'].iloc[i]
+    T_zero = metadata['T [C]'].iloc[i]
+    zero = metadata['zero [g]'].iloc[i]
+        
+    if zero_last:
+        concatenate_mp1(t_grav, t_interp, p_arr, p_interp, T_arr, T_interp,
+                        br_arr, mp1_interp, bp_arr)        
+        concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav, 
+                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr, 
+                     zero, bp_arr)
+    else:
+        concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav, 
+                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr, 
+                     zero, bp_arr)
+        concatenate_mp1(t_grav, t_interp, p_arr, p_interp, T_arr, T_interp,
+                br_arr, mp1_interp, bp_arr)    
+
+   
+def concatenate_mp1(t_grav, t_interp, p_arr, p_interp, T_arr, T_interp,
+                br_arr, mp1_interp, bp_arr):
+    """
+    Concatenate data from measuring point 1 (MP1) measurement.
+    """
+    # concatenate to gravimetry time
+    t_grav += list(t_interp)
+    p_arr += list(p_interp)
+    T_arr += list(T_interp)
+    br_arr += list(mp1_interp)
+    bp_arr += list(2*np.ones([len(t_interp)]))
+
+
+def concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav, 
+                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr, 
+                     zero, bp_arr):
+    """
+    Concatenate data for zero point measurement.
+    """
+    time_date_zero = TimeDate()
+    time_date_zero.load_string(date_zero, time_zero)
+    time_list += [time_zero]
+    date_list += [date_zero]
+    t_grav += [TimeDate.diff_min(time_date_ref, time_date_zero)]
+    p_arr += [p_zero]
+    T_arr += [T_zero]
+    br_arr += [zero]
+    bp_arr += [1]
+    
+    
 def convert_time(date, time):
     """
     Converts the given date and time into an array of times [s] starting from 
@@ -216,6 +335,25 @@ def get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa):
     return inds
 
 
+def get_inds_adsa_manual(time_date_ref, t_adsa, t_grav, metadata, i, n_minutes, buffer=20):
+    """
+    buffer is number of minutes at the end of an experiment to cut off in
+    case synchronization wasn't accurate.
+    """
+    date = metadata['date dp'].iloc[i]
+    if i < len(metadata['time dp start']) - 1:
+        time_end = metadata['time dp start'].iloc[i+1]
+        time_date_end = TimeDate()
+        time_date_end.load(date, time_end)
+        t_min_end = TimeDate.diff_min(time_date_ref, time_date_end)
+    else:
+        t_min_end = t_adsa[-1]
+    
+    inds =  np.where(np.logical_and(t_adsa > t_min_end - buffer - n_minutes, 
+                                   t_adsa < t_min_end - buffer))[0] 
+    
+    return inds
+
 def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
     """
     """
@@ -277,7 +415,35 @@ def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
 #        
 #    return i_start, i_end
         
+
+def interp(t, meas, dt=0.5, t_min=-1, t_max=-1):
+    """
+    Interpolates measurements from manually recorded data.
+    """
+    t_uniq, i_uniq = np.unique(t, return_index=True)
+    meas_uniq = meas[i_uniq]
+    f_interp = interp1d(t_uniq, meas_uniq)
+    if t_min == -1:
+        t_min = t_uniq[0]
+    if t_max == -1:
+        t_max = t_uniq[-1]
+    t_interp = np.arange(t_min, t_max, dt)
+    meas_interp = f_interp(t_interp)
+    
+    return t_interp, meas_interp
   
+    
+def load_datathief_data(filepath):
+    """
+    Loads data exported from datathief.
+    """
+    data = np.genfromtxt(filepath, delimiter=',', skip_header=1)
+    t = data[:,0]
+    meas = data[:,1]
+    
+    return t, meas
+
+
 def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_set_arr,
               hdr_adsa=1, hdr_grav=3, load_if_tension=False,
               columns=['p set [kPa]', 'p actual [kPa]', 'p std [kPa]',
@@ -292,7 +458,7 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
                        'solubility [w/w]', 'solubility error [w/w]',
                        'specific volume [mL/g]',  'specific volume error [mL/g]',
                        'diffusivity (sqrt) [cm^2/s]', 'diffusivity (exp) [cm^2/s]',
-                       'diffusion time constant [s]']):
+                       'diffusion time constant [s]'], zero_t_grav=True):
     """
     Load gravimetry and ADSA data for pre-processing.
     PARAMETERS:
@@ -322,7 +488,8 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
     time_raw = df['TIME'].values
     t_grav = convert_time(date_raw, time_raw)
     # shift time so initial time is zero to match interfacial tension time
-    t_grav -= t_grav[0]
+    if zero_t_grav:
+        t_grav -= t_grav[0]
     
     # load rubotherm data in sync with time
     br_arr = df['WEITGHT(g)'].values
@@ -494,7 +661,47 @@ def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr,
     # get last indices of ADSA data points before final time of gravimetry measurement for synchronization (if possible)
     try:
         # indices of corresponding ADSA data points
+        i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, v_drop)
+        # drop volume [uL]
+        v_drop_mean = np.mean(v_drop[i_adsa])
+        print('Drop volume = %f uL.' % v_drop_mean)
+        df['drop volume [uL]'].iloc[i] = v_drop_mean
+        df['drop volume std [uL]'].iloc[i] = np.std(v_drop[i_adsa])
+    except:
+        print('no adsa data for current pressure.')
+        
+    return df
+
+
+def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr, 
+                           bp_arr, v_drop, n_adsa, n_p_eq, w_resolution=1E-5):
+    """
+    For manual measurements.
+    """
+    # extract data for current pressure
+    br_select = br_arr[i_p0:i_p1]
+    bp_select = bp_arr[i_p0:i_p1]
+    # indices for different measuring positions at end of measurement
+    # 'mp1' is tare plus the hook, crucible, and sample
+    # remove the first points in case balance has not yet settled
+    i_mp1 = np.where(bp_select==2)[0]
+    # identify final measurement of 'measuring point 1'
+    i_mp1_f = i_mp1[:n_p_eq]
+    
+    # get averages and stdev of each balance reading (br), rejecting obvious
+    # outliers (in case only part of the mass is lifted)
+    df['zero [g]'].iloc[i] = metadata['zero [g]'].iloc[i] # only one zero meas
+    df['zero std [g]'].iloc[i] = w_resolution # only one zero meas
+    df['mp1 [g]'].iloc[i] = np.mean(br_select[i_mp1_f])
+    std_mp1 = np.std(reject_outliers(br_select[i_mp1_f]))
+    df['mp1 std [g]'].iloc[i] = max(std_mp1, w_resolution)
+
+    # get last indices of ADSA data points before final time of gravimetry measurement for synchronization (if possible)
+    try:
+        # indices of corresponding ADSA data points
         i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa)
+        # use times to determine indices of ADSA to use
+        i_adsa = get_inds_adsa_manual(t_adsa, t_grav, metadata, i, n_minutes)
         # drop volume [uL]
         v_drop_mean = np.mean(v_drop[i_adsa])
         print('Drop volume = %f uL.' % v_drop_mean)
@@ -519,3 +726,30 @@ def store_if_tension(if_tension, df, i, i_p0, i_p1, t_grav, t_adsa, n_adsa):
     df['if tension std [mN/m]'].iloc[i] = np.std(if_tension[i_adsa])
     
     return df
+
+
+def save_trd(df_trd, trd_save_hdr):
+    """
+    Saves dataframe with header found in TRD files saved by Belsorp. to match
+    TRD files from automatic tests precisely.
+    """    
+    df_trd.to_csv(trd_save_hdr + '_no_hdr.csv', index=False)
+    # add header to csv file to exactly match the TRD files saved during the automatic experiments
+    add_hdr(trd_save_hdr)
+
+def add_hdr(trd_save_hdr, delete_no_hdr=True, no_hdr_tag='_no_hdr.csv', 
+              hdr_list=[':************************',
+                        ':    TREND DATA FILE',
+                        ':************************']):
+    """Adds a header to the no-header TRD file to match the true TRD file."""
+    with open(trd_save_hdr + '.csv', 'w', newline='') as outcsv:
+        writer = csv.writer(outcsv)
+        for i in range(len(hdr_list)):
+            writer.writerow([hdr_list[i]])
+
+        with open(trd_save_hdr + '_no_hdr.csv', 'r', newline='') as incsv:
+            reader = csv.reader(incsv)
+            writer.writerows(row for row in reader)
+            
+    if delete_no_hdr:
+        os.remove(trd_save_hdr + no_hdr_tag)
