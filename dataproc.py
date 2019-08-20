@@ -5,6 +5,8 @@ Created on Thu Jun 13 10:44:09 2019
 @author: Andy
 """
 
+     
+        
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -35,56 +37,110 @@ def compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc,
                         df):
     """
     """
-    # Perform exponential fit to estimate the saturation mass
-    w_gas_inf = df['M_infty (final) [g]'].to_numpy(dtype=float)[i]
+    # extract the starting mass
+    M_0 = df['M_0 (prev) [g]'].iloc[i]
+    # extract the saturation mass
+    M_infty = df['M_infty (final) [g]'].iloc[i]
     # estimate sample thickness based on estimated volume and cross-sectional area of crucible
     area_cruc = np.pi*(diam_cruc/2)**2 # area [cm^2]
     v_samp = df['sample volume [mL]'].values[i] # sample volume [mL]
     h_samp = v_samp / area_cruc # height of sample [cm]
     # compute mean diffusivity using formula from Vrentas et al. 1977 (found in Pastore et al. 2011 as well) [cm^2/s]
-    D_sqrt = np.pi*h_samp**2/4*(a/w_gas_inf)**2
+    D_sqrt = np.pi*h_samp**2/4*(a/(M_infty-M_0))**2
 
     return D_sqrt
 
-def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, t_grav, 
-                     p_thresh_frac, last_bound, v_ref_he):
+def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav, 
+                     p_thresh_frac, last_bound, v_ref_he, get_inst_buoy=False,
+                     v_samp_live=[], no_gaps=False):
     """
+    br_eq_0 : vacuum balance reading at 0 kPa
     """
     # get current set pressure
     p_set = p_set_arr[i]
     
     # get indices of corresponding to the current pressure
     i_p0, i_p1 = get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=last_bound)
+    if no_gaps:
+        i_p0 = last_bound
     bp_select = bp_arr[i_p0:i_p1]
     br_select = br_arr[i_p0:i_p1]
     t_select = t_grav[i_p0:i_p1]
+    p_select = p_arr[i_p0:i_p1]
     
     # extract mp1 measurements and corresponding times for the current pressure set point
     is_mp1 = (bp_select == 2)
     mp1 = medfilt(br_select[is_mp1], kernel_size=5) # medfilt removes spikes from unstable measurements
     t_mp1 = t_select[is_mp1]
-    
-#    # Is the sample adsorbing or desorbing gas?
-#    is_adsorbing = (p_set_arr[i] - p_set_arr[max(i-1,0)]) >= 0
-#    # Cut off data points at the beginning and end from the transition between pressure set points
-#    i_start, i_end = get_mp1_interval(mp1, is_adsorbing)
-#    mp1 = mp1[i_start:i_end]
-#    t_mp1 = t_mp1[i_start:i_end]
+    p_mp1 = p_select[is_mp1]
     
     # estimate the mass of adsorbed gas
     zero = df['zero [g]'].values[i]
-    br_eq = mp1 - zero # balance reading (not corrected for buoyancy) [g]
-    br_eq_0 = br_eq[0] # vacuum balance reading [g]
+    br = mp1 - zero # balance reading (not corrected for buoyancy) [g]
     # subtract the balance reading under vacuum
-    w_gas_app = br_eq - br_eq_0
+    w_gas_app = br - br_eq_0
     # compute the buoyancy correction (approximate volume of sample by equilibrium value) [g]
-    buoyancy = rho_co2(p_set, T)*(df['sample volume [mL]'].values[i] + v_ref_he)
-    # correct for buoyancy to get the true mass of the sample
-    w_gas_act = w_gas_app + buoyancy
+    if get_inst_buoy:
+        p_mp1 = p_select[is_mp1]
+        if len(v_samp_live) > 0:
+            v_samp_select = v_samp_live[i_p0:i_p1]
+            v_samp_mp1 = v_samp_select[is_mp1]
+            buoyancy = rho_co2(p_mp1, T)*(v_samp_mp1 + v_ref_he)
+        else:
+            buoyancy = rho_co2(p_mp1, T)*(df['sample volume [mL]'].values[i] + v_ref_he)
+        # correct for buoyancy to get the true mass of the sample
+        w_gas_act = w_gas_app + buoyancy
+        
+        return w_gas_act, t_mp1, df, i_p1, p_mp1
+    else:
+        buoyancy = rho_co2(p_set, T)*(df['sample volume [mL]'].values[i] + v_ref_he) 
+        # correct for buoyancy to get the true mass of the sample
+        w_gas_act = w_gas_app + buoyancy
+        
+        return w_gas_act, t_mp1, df, i_p1
+
+
+def compute_henrys_const(p, w_gas, v_samp, p_thresh=500, mw=44.01, maxfev=10000):
+    """
+    p is pressure in [kPa]
+    w_gas is mass of gas in [g]
+    v_samp is volume of sample in [mL]
+    p_thresh is upper bound on pressures to consider for fit [kPa]
+    mw is molecular weight in [g/mol]--default is for CO2
     
-    return w_gas_act, t_mp1, df, i_p1
+    returns Henry's constant in SI unit [mol/(m^3 Pa)]
+    """
+    m3_per_mL = 1E-6
+    pa_per_kpa = 1E3
+    c = (w_gas/mw) / (v_samp*m3_per_mL)
+    inds_H = np.logical_and(p <= p_thresh, np.logical_and(np.logical_not(np.isnan(c)),
+                                                          np.logical_not(np.isnan(p))))
+    c_H = c[inds_H]
+    p_H = p[inds_H]
+    # fit just the slope
+    popt, pcov = curve_fit(slope, p_H*pa_per_kpa, c_H, maxfev=maxfev)
+    H = popt[0]
+    
+    return H
 
-
+    
+def compute_t_multiplier(metadata, i, t_p_interp, date_ref, time_ref):
+    """
+    Computes the multiplicative factor by which to multiply the time as 
+    measured by the Belsorp measurement.
+    """
+    date_str = metadata['date'].iloc[i]
+    time_str = metadata['time'].iloc[i]
+    time_date = TimeDate(date_str=date_str, time_str=time_str)
+    time_date_ref = TimeDate(date_str=date_ref, time_str=time_ref)
+    diff_min_act = TimeDate.diff_min(time_date_ref, time_date)
+    # quick validation that last value of interpolated p is the maximum value
+    assert t_p_interp[-1] == np.max(t_p_interp), 'last value of t_p_interp is not maximum.'
+    diff_min_meas = t_p_interp[-1]
+    t_multiplier = diff_min_act / diff_min_meas
+    
+    return t_multiplier
+    
 def compute_t_shift(metadata, i, t_p_interp, p_interp, p_file, date_ref, 
                     time_ref, dpdt_thresh=10, plot_pressure=True):
     """
@@ -294,13 +350,19 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
     # select the first pair of bounds
     # this prevents selection of data points from desorption step if it has the
     # same set pressure
-    i0_coarse = possible_bounds[0]
-    if len(possible_bounds) > 1:
-        i1_coarse = possible_bounds[1]
-    # if you reach the end of the data set, such that the pressure ends on the
-    # current pressure, append last index
+    # If we are selecting the first pressure window, the bound should be the end
+    if last_bound == 0 and len(possible_bounds) == 1:
+        i0_coarse = 0
+        i1_coarse = possible_bounds[0]
+    # otherwise, the bounds should mark the window
     else:
-        i1_coarse = len(p_arr) - 1
+        i0_coarse = possible_bounds[0]
+        if len(possible_bounds) > 1:
+            i1_coarse = possible_bounds[1]
+        # if you reach the end of the data set, such that the pressure ends on the
+        # current pressure, append last index
+        else:
+            i1_coarse = len(p_arr) - 1
         
     # average all the points in the current pressure step
     # because there are so many data points, the outliers will be "drowned out."
@@ -322,20 +384,30 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
     return i0, i1
 
 
-def get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa):
+def get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, return_success=False):
     """
     """
     # extract data for current pressure
     t_select = t_grav[i_p0:i_p1]
     # identify the final time of gravimetry measurement
+    t_i = t_select[0]
     t_f = t_select[-1]
     # get indices of last data points receding final time of gravimetry
     inds = np.where(t_adsa <= t_f)[0][-n_adsa:]
+    if len(np.where(np.logical_and(t_adsa <= t_f, t_adsa >= t_i))[0]) < n_adsa:
+        print('********not enough ADSA points at given pressure.******')
+        success=False
+    else:
+        success=True
     
-    return inds
+    if return_success:
+        return inds, success
+    else:
+        return inds
 
 
-def get_inds_adsa_manual(time_date_ref, t_adsa, t_grav, metadata, i, n_minutes, buffer=20):
+def get_inds_adsa_manual(time_date_ref, t_adsa, t_grav, metadata, i, n_minutes,
+                         buffer=120):
     """
     buffer is number of minutes at the end of an experiment to cut off in
     case synchronization wasn't accurate.
@@ -343,8 +415,7 @@ def get_inds_adsa_manual(time_date_ref, t_adsa, t_grav, metadata, i, n_minutes, 
     date = metadata['date dp'].iloc[i]
     if i < len(metadata['time dp start']) - 1:
         time_end = metadata['time dp start'].iloc[i+1]
-        time_date_end = TimeDate()
-        time_date_end.load(date, time_end)
+        time_date_end = TimeDate(date_str=date, time_str=time_end)
         t_min_end = TimeDate.diff_min(time_date_ref, time_date_end)
     else:
         t_min_end = t_adsa[-1]
@@ -383,6 +454,33 @@ def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
     # cut one more point because the first point always seems off the fit
     return i_start, i_end
 
+
+def get_T(file_name):
+    """Returns the temperature based on a filename of the form *_<T>c*"""
+    inds_c = get_all_inds(file_name, 'c')
+    inds_ = get_all_inds(file_name, '_')
+    for ind in inds_:
+        if ind+3 in inds_c:
+            return int(file_name[ind+1:ind+3])
+    
+    return np.nan
+
+
+def get_all_inds(string, substr):
+    """Returns indices of all occurrences of a substring."""
+    inds = [0]
+    i_curr = string.find(substr)
+    while i_curr != -1:
+        inds += [i_curr + inds[-1]]
+        string = string[inds[-1]:]
+        i_curr = string.find(substr)
+        
+    if len(inds) == 0:
+        result = 0
+    else:
+        result = inds[1:]
+        
+    return result
 #
 #def get_mp1_interval_2nd_deriv(mp1, is_adsorbing, w_thresh=0.00005):
 #    """
@@ -445,7 +543,7 @@ def load_datathief_data(filepath):
 
 
 def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_set_arr,
-              hdr_adsa=1, hdr_grav=3, load_if_tension=False,
+              hdr_adsa=1, hdr_grav=3, load_if_tension=False, time_date_ref=None,
               columns=['p set [kPa]', 'p actual [kPa]', 'p std [kPa]',
                        'zero [g]', 'zero std [g]', 
                        'mp1 [g]', 'mp1 std [g]', 'mp2 [g]', 'mp2 std [g]', 
@@ -486,7 +584,14 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
     # Extract time in terms of seconds after start
     date_raw = df['DATE'].values
     time_raw = df['TIME'].values
-    t_grav = convert_time(date_raw, time_raw)
+    if time_date_ref:
+        t_grav = np.zeros([len(date_raw)])
+        for j in range(len(date_raw)):
+            time_date = TimeDate(date_str=date_raw[j], time_str=time_raw[j])
+            # convert from minutes to seconds to follow convention
+            t_grav[j] = 60*TimeDate.diff_min(time_date_ref, time_date)
+    else:
+        t_grav = convert_time(date_raw, time_raw)
     # shift time so initial time is zero to match interfacial tension time
     if zero_t_grav:
         t_grav -= t_grav[0]
@@ -561,13 +666,20 @@ def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
     return f_rho(p)
 
 
-
+def slope(x, a):
+    """gives a slope going through origin."""
+    return a*x
+    
 def square_root_3param(t, a, b, t0):
     return a*(t-t0)**(0.5) + b
 
 
 def square_root_2param(t, a, b):
     return a*t**(0.5) + b
+
+
+def square_root_2param_t0_fit(t, a, t0):
+    return a*(t-t0)**(0.5)
 
 
 def square_root_1param(t, a):
@@ -661,7 +773,7 @@ def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr,
     # get last indices of ADSA data points before final time of gravimetry measurement for synchronization (if possible)
     try:
         # indices of corresponding ADSA data points
-        i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, v_drop)
+        i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa)
         # drop volume [uL]
         v_drop_mean = np.mean(v_drop[i_adsa])
         print('Drop volume = %f uL.' % v_drop_mean)
@@ -674,7 +786,8 @@ def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr,
 
 
 def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr, 
-                           bp_arr, v_drop, n_adsa, n_p_eq, w_resolution=1E-5):
+                           bp_arr, v_drop, n_minutes, n_p_eq, date_ref, time_ref,
+                           ref_by_dp=True, n_adsa=15, w_resolution=1E-5):
     """
     For manual measurements.
     """
@@ -697,18 +810,22 @@ def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr,
     df['mp1 std [g]'].iloc[i] = max(std_mp1, w_resolution)
 
     # get last indices of ADSA data points before final time of gravimetry measurement for synchronization (if possible)
-    try:
-        # indices of corresponding ADSA data points
-        i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa)
-        # use times to determine indices of ADSA to use
-        i_adsa = get_inds_adsa_manual(t_adsa, t_grav, metadata, i, n_minutes)
-        # drop volume [uL]
-        v_drop_mean = np.mean(v_drop[i_adsa])
-        print('Drop volume = %f uL.' % v_drop_mean)
-        df['drop volume [uL]'].iloc[i] = v_drop_mean
-        df['drop volume std [uL]'].iloc[i] = np.std(v_drop[i_adsa])
-    except:
-        print('no adsa data for current pressure.')
+#    try:
+    time_date_ref = TimeDate(date_str=date_ref, time_str=time_ref)
+    # use times to determine indices of ADSA to use
+    if ref_by_dp:
+        i_adsa = get_inds_adsa_manual(time_date_ref, t_adsa, t_grav, metadata, i, n_minutes)
+    else:
+        i_adsa, success = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, return_success=True)
+        
+    # drop volume [uL]
+    v_drop_mean = np.mean(v_drop[i_adsa])
+    print('Drop volume = %f uL.' % v_drop_mean)
+    df['drop volume [uL]'].iloc[i] = v_drop_mean
+    df['drop volume std [uL]'].iloc[i] = np.std(v_drop[i_adsa])
+    if not success:
+        df['drop volume [uL]'].iloc[i] = np.nan
+        df['drop volume std [uL]'].iloc[i] = np.nan
         
     return df
 

@@ -6,7 +6,8 @@ Created on Wed Jul 24 11:26:16 2019
 """
 
 class TimeDate:
-    def __init__(self, second=0, minute=0, hour=0, day=1, month=1, year=2019):
+    def __init__(self, second=0, minute=0, hour=0, day=1, month=1, year=2019,
+                 date_str='', time_str=''):
         # set values
         self.second = second
         self.minute = minute
@@ -16,6 +17,9 @@ class TimeDate:
         self.year = year
         # validate values
         self.validate(second, minute, hour, day, month, year)
+        # Load time and date strings
+        if len(date_str) > 0 and len(time_str) > 0:
+            self.load_string(date_str, time_str)
         
     def is_second(self, second):
         return 0 <= second and second < 60 and isinstance(second, int)
@@ -130,11 +134,33 @@ class TimeDate:
         diff += td2.minute - td1.minute
         diff += 60*(td2.hour - td1.hour)
         diff += 24*60*(td2.day - td1.day)
-        if td2.month != td1.month or td2.year != td1.year:
-            print("month and year not the same. current method cannot subtract.")
+        if td2.year != td1.year:
+            print("year not the same. current method cannot subtract.")
+        # if second date has a later month, add seconds of months in between
+        if td2.month > td1.month:
+            for m in range(td1.month, td2.month):
+                diff += TimeDate.days_in_given_month(m, td1.year)*24*60
+        # if second date has earlier month, subtract seconds of months in between
+        elif td2.month < td1.month:
+            for m in range(td2.month-1, td1.month-1):
+                diff -= TimeDate.days_in_given_month(m, td1.year)*24*60
         
         return diff
     
+    def days_in_given_month(month, year):
+        if month in [1,3,5,7,8,10,12]:
+            return 31
+        elif month in [4,6,9,11]:
+            return 30
+        elif month == 2:
+            if year % 4 != 0:
+                return 28
+            else:
+                return 29
+        else:
+            print('invalid month format.')
+            return -1 
+        
     def days_in_month(self):
         if self.month in [1,3,5,7,8,10,12]:
             return 31
@@ -146,7 +172,7 @@ class TimeDate:
             else:
                 return 29
         else:
-            self.is_month(self.month)
+            self.is_month(month)
             print('invalid month format.')
             return -1
         
@@ -170,7 +196,7 @@ class TimeDate:
                                       time_string.find(':')+3])
         self.hour = int(time_string[:time_string.find(':')])
         self.day = int(date_string[date_string.find(d_sep)+1: \
-                                   date_string.find(d_sep)+3])
+                                   date_string.find(d_sep, date_string.find(d_sep)+1)])
         self.month = int(date_string[:date_string.find(d_sep)])
         self.year = int(date_string[-4:])
         

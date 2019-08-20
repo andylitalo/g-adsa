@@ -11,9 +11,11 @@ import time
 
 # parameters
 get_location = False
-n_ims = 73
+already_analyzed = True
+n_ims = 574
 duration = 0.2
-long_sleep = 12
+long_sleep = 10
+med_sleep = 2
 short_sleep = 0.2
 save_period = 10
 
@@ -122,7 +124,10 @@ else:
         # switch to FTA32 & click to go to the next image and wait at least 6 seconds
         double_alt_tab()
         pyautogui.click(x=552, y=882, duration=duration)
-        time.sleep(long_sleep)
+        if already_analyzed:
+            time.sleep(med_sleep)
+        else:
+            time.sleep(long_sleep)
         
         # save results
         if i%save_period == 0:
