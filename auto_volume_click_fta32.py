@@ -11,7 +11,7 @@ import time
 
 # parameters
 get_location = False
-n_ims = 174
+n_ims = 144
 duration = 0.2
 short_sleep = 0.2
 

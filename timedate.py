@@ -56,8 +56,12 @@ class TimeDate:
     def add_minute(self, minute):
         self.minute += int(minute)
         while not self.is_minute(self.minute):
-            self.minute -= 60
-            self.hour += 1
+            if minute >= 0:
+                self.minute -= 60
+                self.hour += 1
+            else:
+                self.minute += 60
+                self.hour -= 1
             
     def add_hour(self, hour):
         self.hour += int(hour)

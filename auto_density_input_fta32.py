@@ -9,13 +9,13 @@ import pyautogui
 import time
 
 
-# parameters
+# Stage 4: Mapping the Liquid-liquid Coexistence
 get_location = False
-already_analyzed = True
-n_ims = 574
+already_analyzed = False
+n_ims = 350
 duration = 0.2
-long_sleep = 10
-med_sleep = 2
+long_sleep = 16
+med_sleep = 3   
 short_sleep = 0.2
 save_period = 10
 

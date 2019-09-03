@@ -8,6 +8,30 @@ Created on Tue Jul  2 12:07:34 2019
 import numpy as np
 
 
+def error_D_exp(D_exp, b, s_b, v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, 
+                rho_samp_ref, s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref, 
+                s_v_drop_ref, diam_cruc=1.82, s_diam_cruc=0.05):
+    """
+    Estimates error in computation of the diffusivity computed using an 
+    exponential fit of the end of the adsorbed gas over time curve.
+    diam_cruc is diameter of crucible for Rubotherm measurements [cm]. Default
+    is 1.82 [cm].
+    s_diam_cruc is the estimated uncertainty in the diameter of the crucible.
+    Default is 0.05 [cm].
+    """
+    area_cruc = np.pi*(diam_cruc/2)**2 # area [cm^2]
+    h_samp = v_samp/area_cruc
+    s_area_cruc = area_cruc*2*s_diam_cruc/diam_cruc
+    s_v_samp = error_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, 
+                            rho_samp_ref, s_rho_samp_ref, v_drop, s_v_drop, 
+                            v_drop_ref, s_v_drop_ref)
+    s_h_samp = h_samp*norm( (s_v_samp/v_samp, s_area_cruc/area_cruc))
+    s_D_exp = D_exp*norm( (2*s_h_samp/h_samp, s_b/b) )
+    
+    return s_D_exp
+    
+    
+
 def norm(elements):
     result = 0
     for i in range(len(elements)):
@@ -26,7 +50,7 @@ def error_solubility(solubility, v_samp, w_buoy, w_gas_act, v_drop, s_v_drop, w_
     """
     n = len(solubility)
     # error in the sample volume
-    s_v_samp = error_s_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref,
+    s_v_samp = error_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref,
                    s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref, s_v_drop_ref)
     # error in balance reading
     s_br = norm( (s_mp1, s_zero) )
@@ -56,7 +80,7 @@ def error_spec_vol(spec_vol, v_samp, w_buoy, w_gas_act, v_drop, s_v_drop, w_poly
     """
     n = len(spec_vol)
     # uncertainty in volume of sample [mL]
-    s_v_samp = error_s_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, 
+    s_v_samp = error_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, 
                               rho_samp_ref, s_rho_samp_ref, v_drop, s_v_drop, 
                               v_drop_ref, s_v_drop_ref)
     # error in balance reading
@@ -78,7 +102,7 @@ def error_spec_vol(spec_vol, v_samp, w_buoy, w_gas_act, v_drop, s_v_drop, w_poly
     return s_spec_vol
 
 
-def error_s_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref,
+def error_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref,
                    s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref, s_v_drop_ref):
     """
     """
@@ -107,3 +131,24 @@ def error_w_gas_act(s_br, s_br_0, w_buoy, s_frac_rho_co2, \
         return s_w_gas_act, s_w_buoy
     else:
         return s_w_gas_act
+    
+def error_w_gas_act_helper(s_mp1, s_zero, w_buoy, s_frac_rho_co2, v_samp,
+                           v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref,
+                           s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref, 
+                           s_v_drop_ref, v_ref, s_v_ref, return_s_w_buoy=False):
+    """
+    Performs some of the computations for the terms required by error_w_gas_act.
+    """
+    n = len(v_samp)
+    # uncertainty in volume of sample [mL]
+    s_v_samp = error_v_samp(v_samp, v_samp_ref, w_samp_ref, s_w_samp_ref, 
+                              rho_samp_ref, s_rho_samp_ref, v_drop, s_v_drop, 
+                              v_drop_ref, s_v_drop_ref)
+    # error in balance reading
+    s_br = norm( (s_mp1, s_zero) )
+    # extract first entry that is not a nan as error in balance reading at p=0
+    s_br_0 = s_br[np.logical_not(np.isnan(s_br))][0]*np.ones([n])
+    
+    return error_w_gas_act(s_br, s_br_0, w_buoy, s_frac_rho_co2, \
+                                            v_samp, s_v_samp, v_ref, s_v_ref, \
+                                            return_s_w_buoy=return_s_w_buoy)

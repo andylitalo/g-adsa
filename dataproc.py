@@ -18,6 +18,7 @@ from scipy.interpolate import interp1d
 from scipy.signal import medfilt
 
 from timedate import TimeDate
+import errprop
 
 
 def compute_D_exp(i, diam_cruc, df, b):
@@ -52,28 +53,31 @@ def compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc,
 
 def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav, 
                      p_thresh_frac, last_bound, v_ref_he, get_inst_buoy=False,
-                     v_samp_live=[], no_gaps=False):
+                     v_samp_live=[], no_gaps=False, err_list=[]):
     """
     br_eq_0 : vacuum balance reading at 0 kPa
     """
+    # initialize the result
+    result = []
     # get current set pressure
     p_set = p_set_arr[i]
-    
     # get indices of corresponding to the current pressure
     i_p0, i_p1 = get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=last_bound)
+    # cut data points during change in pressure or have no gaps in data?
     if no_gaps:
         i_p0 = last_bound
+    # Select data for current pressure step
     bp_select = bp_arr[i_p0:i_p1]
     br_select = br_arr[i_p0:i_p1]
     t_select = t_grav[i_p0:i_p1]
     p_select = p_arr[i_p0:i_p1]
-    
     # extract mp1 measurements and corresponding times for the current pressure set point
     is_mp1 = (bp_select == 2)
     mp1 = medfilt(br_select[is_mp1], kernel_size=5) # medfilt removes spikes from unstable measurements
     t_mp1 = t_select[is_mp1]
     p_mp1 = p_select[is_mp1]
-    
+    # load initial parts of the result
+    result = [t_mp1, df, i_p1]
     # estimate the mass of adsorbed gas
     zero = df['zero [g]'].values[i]
     br = mp1 - zero # balance reading (not corrected for buoyancy) [g]
@@ -84,20 +88,30 @@ def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav
         p_mp1 = p_select[is_mp1]
         if len(v_samp_live) > 0:
             v_samp_select = v_samp_live[i_p0:i_p1]
-            v_samp_mp1 = v_samp_select[is_mp1]
-            buoyancy = rho_co2(p_mp1, T)*(v_samp_mp1 + v_ref_he)
+            v_samp = v_samp_select[is_mp1]
         else:
-            buoyancy = rho_co2(p_mp1, T)*(df['sample volume [mL]'].values[i] + v_ref_he)
-        # correct for buoyancy to get the true mass of the sample
-        w_gas_act = w_gas_app + buoyancy
+            v_samp = df['sample volume [mL]'].values[i]
+        # also return the pressure
+        result += [p_mp1]
         
-        return w_gas_act, t_mp1, df, i_p1, p_mp1
     else:
-        buoyancy = rho_co2(p_set, T)*(df['sample volume [mL]'].values[i] + v_ref_he) 
-        # correct for buoyancy to get the true mass of the sample
-        w_gas_act = w_gas_app + buoyancy
+        v_samp = df['sample volume [mL]'].values[i]
+    # correct for buoyancy to get the true mass of the sample
+    buoyancy = rho_co2(p_mp1, T)*(v_samp + v_ref_he)
+    w_gas_act = w_gas_app + buoyancy
+    result = [w_gas_act] + result
+    # compute the error in the gas mass
+    if len(err_list) > 0:
+        s_mp1, s_zero, w_buoy, s_frac_rho_co2, v_samp, \
+        v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref, \
+        s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref, \
+        s_v_drop_ref, v_ref, s_v_ref = err_list
+        result += [errprop.error_w_gas_act_helper(s_mp1, s_zero, w_buoy, s_frac_rho_co2, v_samp,
+                           v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref,
+                           s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref, 
+                           s_v_drop_ref, v_ref, s_v_ref)]
         
-        return w_gas_act, t_mp1, df, i_p1
+    return tuple(result)
 
 
 def compute_henrys_const(p, w_gas, v_samp, p_thresh=500, mw=44.01, maxfev=10000):
@@ -127,12 +141,15 @@ def compute_henrys_const(p, w_gas, v_samp, p_thresh=500, mw=44.01, maxfev=10000)
 def compute_t_multiplier(metadata, i, t_p_interp, date_ref, time_ref):
     """
     Computes the multiplicative factor by which to multiply the time as 
-    measured by the Belsorp measurement.
+    measured by the Belsorp measurement. Factor is calculated by dividing known
+    time of measurement of zero point (last measurement at a given pressure)
+    by the reported ???
     """
     date_str = metadata['date'].iloc[i]
     time_str = metadata['time'].iloc[i]
     time_date = TimeDate(date_str=date_str, time_str=time_str)
     time_date_ref = TimeDate(date_str=date_ref, time_str=time_ref)
+    # calculate actual time since start of experiment to 
     diff_min_act = TimeDate.diff_min(time_date_ref, time_date)
     # quick validation that last value of interpolated p is the maximum value
     assert t_p_interp[-1] == np.max(t_p_interp), 'last value of t_p_interp is not maximum.'
@@ -363,7 +380,6 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
         # current pressure, append last index
         else:
             i1_coarse = len(p_arr) - 1
-        
     # average all the points in the current pressure step
     # because there are so many data points, the outliers will be "drowned out."
     # Then take the points that are within a smaller threshold of the average
@@ -834,13 +850,21 @@ def store_if_tension(if_tension, df, i, i_p0, i_p1, t_grav, t_adsa, n_adsa):
     """
     """
     # indices of corresponding ADSA data points
-    i_adsa = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa) 
-    # interfacial tension [mN/m]
-    if_mean = np.mean(if_tension[i_adsa])
-    print('Interfacial tension = %f mN/m.' % if_mean)
-    # store data
-    df['if tension [mN/m]'].iloc[i] = if_mean
-    df['if tension std [mN/m]'].iloc[i] = np.std(if_tension[i_adsa])
+    i_adsa, success = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, return_success=True) 
+    # cut out indices that extend beyond the length of the interfacial tension data
+    if success:
+        # compute interfacial tension [mN/m] from entries that are not nan
+        i_not_nan = [i for i in i_adsa if not np.isnan(if_tension[i])]
+        if len(i_not_nan) < n_adsa/2:
+            print('More than half nans, so interfacial tension data not stored.')
+            return df
+        if_mean = np.mean(if_tension[i_not_nan])
+        print('Interfacial tension = %f mN/m.' % if_mean)
+        # store data
+        df['if tension [mN/m]'].iloc[i] = if_mean
+        df['if tension std [mN/m]'].iloc[i] = np.std(if_tension[i_adsa])
+    else:
+        print("Interfacial tension data not stored.")
     
     return df
 
