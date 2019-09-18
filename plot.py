@@ -9,8 +9,7 @@ import matplotlib.pyplot as plt
 import numpy as np
 
 
-
-def plot_line(x, y, ax=None, xlabel='', ylabel='', title='', marker='.', lw=0, 
+def plot_line(x, y, ax=None, xlabel='', ylabel='', title='', marker='.', lw=0,
               ax_fs=16, t_fs=20, color='b', label=None, xlog=False, ylog=False,
               ls='-'):
     """Plot a single line."""
@@ -28,12 +27,13 @@ def plot_line(x, y, ax=None, xlabel='', ylabel='', title='', marker='.', lw=0,
         ax.set_ylabel(ylabel, fontsize=ax_fs)
     if len(title) > 0:
         ax.set_title(title, fontsize=t_fs)
-        
+
     return ax
 
 
 def plot_errorbars_ads_des(x, y, yerr, p_set_arr, T, ax=None, xlabel='', ylabel='',
-                           title='', ax_fs=16, t_fs=20, color='b', label_tag=''):
+                           title='', ax_fs=16, t_fs=20, color='b', label_tag='',
+                           xlog=False, ylog=False, xlim=[], ylim=[]):
     """Plots errorbars on points."""
     if not ax:
         fig = plt.figure()
@@ -43,7 +43,7 @@ def plot_errorbars_ads_des(x, y, yerr, p_set_arr, T, ax=None, xlabel='', ylabel=
     # adsorption
     ax.errorbar(x[:midpt], y[:midpt], yerr=yerr[:midpt], color=color, marker='o',
                 fillstyle='none', ls='', label='%.1f C (ads) %s' % (T, label_tag))
-    ax.errorbar(x[midpt:], y[midpt:], yerr=yerr[midpt:], color=color, marker='x', 
+    ax.errorbar(x[midpt:], y[midpt:], yerr=yerr[midpt:], color=color, marker='x',
                 ls='', label='%.1f C (des) %s' % (T, label_tag))
     if len(xlabel) > 0:
         ax.set_xlabel(xlabel, fontsize=ax_fs)
@@ -51,8 +51,16 @@ def plot_errorbars_ads_des(x, y, yerr, p_set_arr, T, ax=None, xlabel='', ylabel=
         ax.set_ylabel(ylabel, fontsize=ax_fs)
     if len(title) > 0:
         ax.set_title(title, fontsize=t_fs)
+    if xlog:
+        ax.set_xscale('log')
+    if ylog:
+        ax.set_yscale('log')
+    if len(xlim) == 2:
+        ax.set_xlim(xlim)
+    if len(ylim) == 2:
+        ax.set_ylim(ylim)
     plt.legend(loc='best')
-     
+
     return ax
 
 
@@ -74,24 +82,24 @@ def plot_two_axes(x, y1, y2, x2=[], markers=['o', '^'], labels=['1', '2'],
     ax1.tick_params('y', colors=colors[0])
     if len(title) > 0:
         ax1.set_title(title, fontsize=t_fs)
-    
+
     # separate axis for gas mass
     ax2 = ax1.twinx()
     # plot second axis
     if len(x2) > 0:
-        ax2.plot(x2, y2, marker=markers[1], ms=ms, label=labels[1], 
+        ax2.plot(x2, y2, marker=markers[1], ms=ms, label=labels[1],
                  color=colors[1], lw=lw)
     else:
-        ax2.plot(x, y2, marker=markers[1], ms=ms, label=labels[1], 
+        ax2.plot(x, y2, marker=markers[1], ms=ms, label=labels[1],
                  color=colors[1], lw=lw)
     # labels
     if len(ylabels) == 2:
         ax2.set_ylabel(ylabels[1], color=colors[1], fontsize=ax_fs)
     ax2.tick_params('y', colors=colors[1])
-    
+
     # increase font size of tick labels
     ax1.tick_params(axis='both', which='major', labelsize=tk_fs)
     ax2.tick_params(axis='y', which='major', labelsize=tk_fs)
     fig.tight_layout()
-    
+
     return ax1

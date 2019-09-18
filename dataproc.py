@@ -5,8 +5,8 @@ Created on Thu Jun 13 10:44:09 2019
 @author: Andy
 """
 
-     
-        
+
+
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
@@ -32,9 +32,9 @@ def compute_D_exp(i, diam_cruc, df, b):
     D_exp = -(4*h_samp**2/np.pi**2)*b
 
     return D_exp
-    
 
-def compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc, 
+
+def compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc,
                         df):
     """
     """
@@ -51,7 +51,7 @@ def compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc,
 
     return D_sqrt
 
-def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav, 
+def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav,
                      p_thresh_frac, last_bound, v_ref_he, get_inst_buoy=False,
                      v_samp_live=[], no_gaps=False, err_list=[]):
     """
@@ -93,7 +93,7 @@ def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav
             v_samp = df['sample volume [mL]'].values[i]
         # also return the pressure
         result += [p_mp1]
-        
+
     else:
         v_samp = df['sample volume [mL]'].values[i]
     # correct for buoyancy to get the true mass of the sample
@@ -108,9 +108,9 @@ def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav
         s_v_drop_ref, v_ref, s_v_ref = err_list
         result += [errprop.error_w_gas_act_helper(s_mp1, s_zero, w_buoy, s_frac_rho_co2, v_samp,
                            v_samp_ref, w_samp_ref, s_w_samp_ref, rho_samp_ref,
-                           s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref, 
+                           s_rho_samp_ref, v_drop, s_v_drop, v_drop_ref,
                            s_v_drop_ref, v_ref, s_v_ref)]
-        
+
     return tuple(result)
 
 
@@ -121,7 +121,7 @@ def compute_henrys_const(p, w_gas, v_samp, p_thresh=500, mw=44.01, maxfev=10000)
     v_samp is volume of sample in [mL]
     p_thresh is upper bound on pressures to consider for fit [kPa]
     mw is molecular weight in [g/mol]--default is for CO2
-    
+
     returns Henry's constant in SI unit [mol/(m^3 Pa)]
     """
     m3_per_mL = 1E-6
@@ -134,13 +134,13 @@ def compute_henrys_const(p, w_gas, v_samp, p_thresh=500, mw=44.01, maxfev=10000)
     # fit just the slope
     popt, pcov = curve_fit(slope, p_H*pa_per_kpa, c_H, maxfev=maxfev)
     H = popt[0]
-    
+
     return H
 
-    
+
 def compute_t_multiplier(metadata, i, t_p_interp, date_ref, time_ref):
     """
-    Computes the multiplicative factor by which to multiply the time as 
+    Computes the multiplicative factor by which to multiply the time as
     measured by the Belsorp measurement. Factor is calculated by dividing known
     time of measurement of zero point (last measurement at a given pressure)
     by the reported ???
@@ -149,19 +149,19 @@ def compute_t_multiplier(metadata, i, t_p_interp, date_ref, time_ref):
     time_str = metadata['time'].iloc[i]
     time_date = TimeDate(date_str=date_str, time_str=time_str)
     time_date_ref = TimeDate(date_str=date_ref, time_str=time_ref)
-    # calculate actual time since start of experiment to 
+    # calculate actual time since start of experiment to
     diff_min_act = TimeDate.diff_min(time_date_ref, time_date)
     # quick validation that last value of interpolated p is the maximum value
     assert t_p_interp[-1] == np.max(t_p_interp), 'last value of t_p_interp is not maximum.'
     diff_min_meas = t_p_interp[-1]
     t_multiplier = diff_min_act / diff_min_meas
-    
+
     return t_multiplier
-    
-def compute_t_shift(metadata, i, t_p_interp, p_interp, p_file, date_ref, 
+
+def compute_t_shift(metadata, i, t_p_interp, p_interp, p_file, date_ref,
                     time_ref, dpdt_thresh=10, plot_pressure=True):
     """
-    Computes number of minutes that the time of a manual experiment must be 
+    Computes number of minutes that the time of a manual experiment must be
     shifted to align with known recorded times.
     """
     dt = np.diff(t_p_interp)
@@ -198,12 +198,12 @@ def compute_t_shift(metadata, i, t_p_interp, p_interp, p_file, date_ref,
     time_date_dp.load_string(date_dp, time_dp)
     t_since_ref = TimeDate.diff_min(time_date_ref, time_date_dp)
     t_shift = t_since_ref - t_p_step
-    
+
     return t_shift
 
 
-def concatenate_data(metadata, i, date_ref, time_ref, time_list, date_list, 
-                     t_grav, t_interp, p_interp, p_arr, T_interp, T_arr, 
+def concatenate_data(metadata, i, date_ref, time_ref, time_list, date_list,
+                     t_grav, t_interp, p_interp, p_arr, T_interp, T_arr,
                      mp1_interp, br_arr, bp_arr, zero_last=True):
     """
     Concatenate data for the creation of an artificial TRD file in the case of
@@ -220,28 +220,28 @@ def concatenate_data(metadata, i, date_ref, time_ref, time_list, date_list,
         time_list += [time_date.get_time_string()]
         date_list += [time_date.get_date_string()]
         del time_date
-        
+
     # load metadata for zero point
     time_zero = metadata['time'].iloc[i]
     date_zero = metadata['date'].iloc[i]
     p_zero = metadata['p actual [kPa]'].iloc[i]
     T_zero = metadata['T [C]'].iloc[i]
     zero = metadata['zero [g]'].iloc[i]
-        
+
     if zero_last:
         concatenate_mp1(t_grav, t_interp, p_arr, p_interp, T_arr, T_interp,
-                        br_arr, mp1_interp, bp_arr)        
-        concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav, 
-                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr, 
+                        br_arr, mp1_interp, bp_arr)
+        concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav,
+                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr,
                      zero, bp_arr)
     else:
-        concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav, 
-                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr, 
+        concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav,
+                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr,
                      zero, bp_arr)
         concatenate_mp1(t_grav, t_interp, p_arr, p_interp, T_arr, T_interp,
-                br_arr, mp1_interp, bp_arr)    
+                br_arr, mp1_interp, bp_arr)
 
-   
+
 def concatenate_mp1(t_grav, t_interp, p_arr, p_interp, T_arr, T_interp,
                 br_arr, mp1_interp, bp_arr):
     """
@@ -255,8 +255,8 @@ def concatenate_mp1(t_grav, t_interp, p_arr, p_interp, T_arr, T_interp,
     bp_arr += list(2*np.ones([len(t_interp)]))
 
 
-def concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav, 
-                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr, 
+def concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav,
+                     time_date_ref, p_arr, p_zero, T_arr, T_zero, br_arr,
                      zero, bp_arr):
     """
     Concatenate data for zero point measurement.
@@ -270,18 +270,18 @@ def concatenate_zero(time_zero, date_zero, time_list, date_list, t_grav,
     T_arr += [T_zero]
     br_arr += [zero]
     bp_arr += [1]
-    
-    
+
+
 def convert_time(date, time):
     """
-    Converts the given date and time into an array of times [s] starting from 
+    Converts the given date and time into an array of times [s] starting from
     zero.
     INPUTS:
         date : array of strings
             Format of strings is mm-dd-yyyy
         time : array of strings
             Format of strings is hh:mm:ss
-            
+
     OUTPUTS:
         time_passed : array of ints
             Time since start
@@ -293,26 +293,146 @@ def convert_time(date, time):
         d_sep = '-'
     else:
         print('date in unrecognized format by dataproc.convert_time.')
-        
+
     # Extract the various units of time
     mo = np.array([int(d[:d.find(d_sep)]) for d in date])
     dy = np.array([int(d[d.find(d_sep)+1:d.find(d_sep)+3]) for d in date])
     hr = np.array([int(t[:t.find(':')]) for t in time])
     mi = np.array([int(t[t.find(':')+1:t.find(':')+3]) for t in time])
     sc = np.array([int(t[t.find(':')+4:]) for t in time])
-    
+
     # Shift each time unit by its initial value
     dy -= dy[0]
     mo -= mo[0]
     hr -= hr[0]
     mi -= mi[0]
     sc -= sc[0]
-    
-    time_passed = 24*3600*dy + 3600*hr + 60*mi + sc
-    
-    # TODO: fix to adjust with the changing of the month!!!
-    return time_passed   
 
+    time_passed = 24*3600*dy + 3600*hr + 60*mi + sc
+
+    # TODO: fix to adjust with the changing of the month!!!
+    return time_passed
+
+# def diffusivity(df, p_set_arr, p_arr, p_thresh_frac, t_grav, n_pts_sqrt_arr, T, plot_results=False):
+#     """
+#     Defines routine to compute the diffusivity given data to fit and a fitting
+#     method.
+#     """
+#     # initialize marker for pressure bounds
+#     last_bound = 0
+#     # initialize array to store diffusivity values
+#     D_sqrt_arr = np.zeros([len(p_set_arr)])
+#     # initialize array to store initial mass M_0 extrapolated with t^1/2 fit
+#     M_0_extrap = np.zeros([len(p_set_arr)])
+#     # Loop through each pressure set point
+#     for i in range(len(p_set_arr)):
+#         p_set = p_set_arr[i]
+#         n_pts_sqrt = n_pts_sqrt_arr[i]
+#         print('Pressure = %d kPa.' % p_set)
+#         # the initial time of sorption is defined as the point where the pressure began changing after the previous sorption test
+#         i_t0 = last_bound
+#         t0 = t_grav[i_t0]
+#         # get indices of each measurement with pressure within thresholds
+#         i_p0, i_p1 = dataproc.get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=last_bound)
+#         t_init = t_grav[i_p0]
+#
+#         # compute actual mass of gas at the times corresponding to the current pressure, save data in data frame
+#         w_gas_act, t_mp1, df, last_bound, p_mp1 = dataproc.compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0,
+#                                                                             t_grav, p_thresh_frac, last_bound, v_ref_he,
+#                                                                             get_inst_buoy=True)
+#         # additional cutting off of data for t^1/2 fit
+#         t_mp1 = t_mp1[i_shift[i]:]
+#         w_gas_act = w_gas_act[i_shift[i]:]
+#
+#         # skip analysis if there are "nan"s in the data
+#         if (np.isnan(w_gas_act)).any():
+#             continue
+#
+#         # fit initial data points to a square root curve per eqn 10.165 in Crank (1956) "The Mathematics of Diffusion"
+#         n = min(n_pts_sqrt, len(t_mp1)-1)
+#         popt, pcov = curve_fit(dataproc.square_root_3param, t_mp1[:n], w_gas_act[:n], maxfev=maxfev)
+#         a = popt[0]
+#         w0 = popt[1]
+#         t0_fit = popt[2]
+#
+#         # generate data points for t^(1/2) fit
+#         t_fit = np.linspace(t_mp1[0], t_mp1[n-1], 100)
+#         w_fit = dataproc.square_root_3param(t_fit, a, w0, t0_fit)
+#         # plot the result to examine the fit
+#         fig = plt.figure()
+#         ax = fig.add_subplot(111)
+#         # plot data translated such that first point is 0,0 and data increases (so t^1/2 looks like a straight line on log-log)
+#         is_adsorbing = i <= np.argmax(p_set_arr)
+#         sign = 2*(is_adsorbing-0.5)
+#         ax.loglog(t_mp1 - t0_fit, sign*(w_gas_act - w0), '^', label='data')
+#         ax.loglog(t_fit - t0_fit, sign*(w_fit - w0), '-', label='{a:.1e}(t-{t0:.1e})^(1/2) + {b:.1e}'.format(a=a, b=w0, t0=t0_fit))
+#         ax.set_xlabel('t [s]')
+#         ax.set_ylabel(r'$\Delta w_{CO2}$ [g]')
+#         if is_adsorbing:
+#             stage = 'Adsorption'
+#         else:
+#             stage = 'Desorption'
+#         ax.set_title(stage + ' of CO2 in %s polyol at p = %d kPa, %d C' % (polyol, p_set, T))
+#         plt.legend(loc='best')
+#
+#         # compute mean diffusion coefficient with the squareroot method by fitting and exponential curve to get the equilibrium mass
+#         D_sqrt = dataproc.compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc, df)
+#         print('D_sqrt = %.2e cm^2/s.' % D_sqrt)
+#         # store result
+#         D_sqrt_arr[i] = D_sqrt
+#
+#         # Also save the "initial" mass extrapolated to the beginning of the change in pressure
+#         M_0_extrap[i] = dataproc.square_root_3param(max(t0, t0_fit), a, w0, t0_fit)
+#
+#
+#
+#
+#
+#
+#
+#
+#     # the initial time of sorption is defined as the point where the pressure began changing after the previous sorption test
+#     i_t0 = last_bound
+#     t0 = t_grav[i_t0]
+#     # get indices of each measurement with pressure within thresholds
+#     i_p0, i_p1 = dataproc.get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=last_bound)
+#     t_init = t_grav[i_p0]
+#
+#     # compute actual mass of gas at the times corresponding to the current pressure, save data in data frame
+#     w_gas_act, t_mp1, df, last_bound, p_mp1 = dataproc.compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0,
+#                                                                         t_grav, p_thresh_frac, last_bound, v_ref_he,
+#                                                                         get_inst_buoy=True)
+#     # additional cutting off of data for t^1/2 fit
+#     t_mp1 = t_mp1[i_shift[i]:]
+#     w_gas_act = w_gas_act[i_shift[i]:]
+#
+#     # skip analysis if there are "nan"s in the data
+#     if (np.isnan(w_gas_act)).any():
+#         continue
+#
+#     # fit initial data points to a square root curve per eqn 10.165 in Crank (1956) "The Mathematics of Diffusion"
+#     n = min(n_pts_sqrt, len(t_mp1)-1)
+#
+#
+#     popt, pcov = curve_fit(dataproc.square_root_3param, t_mp1[:n], w_gas_act[:n], maxfev=maxfev)
+#     a = popt[0]
+#     w0 = popt[1]
+#     t0_fit = popt[2]
+#     # generate data points for t^(1/2) fit
+#     t_fit = np.linspace(t_mp1[0], t_mp1[n-1], 100)
+#     w_fit = dataproc.square_root_3param(t_fit, a, w0, t0_fit)
+#     # Also save the "initial" mass extrapolated to the beginning of the change in pressure
+#     M_0 = dataproc.square_root_3param(max(t0, t0_fit), a, w0, t0_fit)
+#
+#
+#     # compute mean diffusion coefficient with the squareroot method by fitting and exponential curve to get the equilibrium mass
+#     D_sqrt = dataproc.compute_D_sqrt(i, a, t_mp1, w_gas_act, n_pts_exp, maxfev, diam_cruc, df)
+#
+#     if plot_results:
+#         plot.diffusivity()
+#
+#
+#     return D, M_0
 
 def exponential_approach(x, a, b, c):
     """Exponential approach to asymptote. Negatives and /100 there because I can't figure out how to change the initial
@@ -322,15 +442,15 @@ def exponential_approach(x, a, b, c):
 
 
 def extrapolate_equilibrium(t, m, maxfev=800, p0=(-0.01, -1E-4, 0.01)):
-    """Extrapolate mass over time with exponential fit to estimate equilibrium."""    
+    """Extrapolate mass over time with exponential fit to estimate equilibrium."""
     popt, pcov = curve_fit(exponential_approach, t, m, maxfev=maxfev, p0=p0)
     a, b, c = popt
     m_eq = c
-    
+
     return m_eq
 
 
-def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0, 
+def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
                         window_reduction=0.25, min_window=1):
     """
     Returns the indices of the data arrays corresponding to the current pressure
@@ -350,14 +470,14 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
             averaging p in current window, used to remove outliers
         min_window : int
             minimum width of pressure window [kPa]
-        
+
     Returns :
         i0, i1 : ints
             Indices corresponding to the first and last data points for pressure set point.
-    """    
+    """
     # remove data from previous pressures
     p_arr = p_arr[last_bound:]
-    
+
     # get indices of pressures within threshold of set point
     # (for nonzero window at p = 0, at one kPa)
     in_window = np.abs(p_set - p_arr) <= p_thresh_frac*p_set + min_window
@@ -385,7 +505,7 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
     # Then take the points that are within a smaller threshold of the average
     p_curr = p_arr[i0_coarse:i1_coarse]
     p_mean = np.mean(p_curr)
-    inds_small_window = np.where(np.abs(p_mean-p_curr) <= 
+    inds_small_window = np.where(np.abs(p_mean-p_curr) <=
                                  p_thresh_frac*p_set*window_reduction + min_window)[0]
     i0_small_window = inds_small_window[0]
     i1_small_window = inds_small_window[-1]
@@ -396,7 +516,7 @@ def get_curr_p_interval(p_arr, p_set, p_thresh_frac, last_bound=0,
     offset = last_bound + i0_coarse + i0_small_window
     i0 = inds_accepted[0] + offset
     i1 = inds_accepted[-1] + offset
-    
+
     return i0, i1
 
 
@@ -415,7 +535,7 @@ def get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, return_success=False):
         success=False
     else:
         success=True
-    
+
     if return_success:
         return inds, success
     else:
@@ -435,10 +555,10 @@ def get_inds_adsa_manual(time_date_ref, t_adsa, t_grav, metadata, i, n_minutes,
         t_min_end = TimeDate.diff_min(time_date_ref, time_date_end)
     else:
         t_min_end = t_adsa[-1]
-    
-    inds =  np.where(np.logical_and(t_adsa > t_min_end - buffer - n_minutes, 
-                                   t_adsa < t_min_end - buffer))[0] 
-    
+
+    inds =  np.where(np.logical_and(t_adsa > t_min_end - buffer - n_minutes,
+                                   t_adsa < t_min_end - buffer))[0]
+
     return inds
 
 def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
@@ -464,9 +584,9 @@ def get_mp1_interval(mp1, is_adsorbing, w_thresh=0.00005):
         i_end = -1
     else:
         i_end = i_end[0]
-                
-    i_start += 1 
-    
+
+    i_start += 1
+
     # cut one more point because the first point always seems off the fit
     return i_start, i_end
 
@@ -478,7 +598,7 @@ def get_T(file_name):
     for ind in inds_:
         if ind+3 in inds_c:
             return int(file_name[ind+1:ind+3])
-    
+
     return np.nan
 
 
@@ -490,12 +610,12 @@ def get_all_inds(string, substr):
         inds += [i_curr + inds[-1]]
         string = string[inds[-1]:]
         i_curr = string.find(substr)
-        
+
     if len(inds) == 0:
         result = 0
     else:
         result = inds[1:]
-        
+
     return result
 #
 #def get_mp1_interval_2nd_deriv(mp1, is_adsorbing, w_thresh=0.00005):
@@ -522,13 +642,13 @@ def get_all_inds(string, substr):
 #    if len(i_end)==0:
 #        i_end = -1
 #    else:
-#        i_end = i_end[0] 
-#        
+#        i_end = i_end[0]
+#
 #    print('i_start = {0}, i_end = {1}, i_halfway = {2}'.format(i_start, i_end,
 #          i_halfway))
-#        
+#
 #    return i_start, i_end
-        
+
 
 def interp(t, meas, dt=0.5, t_min=-1, t_max=-1):
     """
@@ -543,10 +663,10 @@ def interp(t, meas, dt=0.5, t_min=-1, t_max=-1):
         t_max = t_uniq[-1]
     t_interp = np.arange(t_min, t_max, dt)
     meas_interp = f_interp(t_interp)
-    
+
     return t_interp, meas_interp
-  
-    
+
+
 def load_datathief_data(filepath):
     """
     Loads data exported from datathief.
@@ -554,19 +674,19 @@ def load_datathief_data(filepath):
     data = np.genfromtxt(filepath, delimiter=',', skip_header=1)
     t = data[:,0]
     meas = data[:,1]
-    
+
     return t, meas
 
 
 def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_set_arr,
               hdr_adsa=1, hdr_grav=3, load_if_tension=False, time_date_ref=None,
               columns=['p set [kPa]', 'p actual [kPa]', 'p std [kPa]',
-                       'zero [g]', 'zero std [g]', 
-                       'mp1 [g]', 'mp1 std [g]', 'mp2 [g]', 'mp2 std [g]', 
-                       'M_0 (extrap) [g]', 'M_0 (prev) [g]', 
+                       'zero [g]', 'zero std [g]',
+                       'mp1 [g]', 'mp1 std [g]', 'mp2 [g]', 'mp2 std [g]',
+                       'M_0 (extrap) [g]', 'M_0 (prev) [g]',
                        'M_infty (extrap) [g]', 'M_infty (final) [g]',
-                       'if tension [mN/m]', 'if tension std [mN/m]', 
-                       'drop volume [uL]', 'drop volume std [uL]', 
+                       'if tension [mN/m]', 'if tension std [mN/m]',
+                       'drop volume [uL]', 'drop volume std [uL]',
                        'sample volume [mL]', 'dissolved gas balance reading [g]',
                        'buoyancy correction [g]', 'actual weight of dissolved gas [g]',
                        'solubility [w/w]', 'solubility error [w/w]',
@@ -576,16 +696,16 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
     """
     Load gravimetry and ADSA data for pre-processing.
     PARAMETERS:
-        
+
     RETURNS:
-        
+
     """
     # initialize arrys to store interfacial tension [mN/m], drop volume [uL],
     # and time [s] measured by ADSA system
     if_tension = np.array([])
     v_drop = np.array([])
     t_adsa = np.array([])
-    
+
     # extract data from all data files for the pendant drop (ADSA)
     for i in range(len(adsa_file_list)):
         adsa_file = adsa_file_list[i]
@@ -594,7 +714,7 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
         t_adsa = np.concatenate((t_adsa, df_adsa['Secs.1'].values + adsa_t0_list[i]))
         if load_if_tension:
             if_tension = np.concatenate((if_tension, df_adsa['IFT'].values))
-    
+
     # load rubotherm data and process
     df = pd.read_csv(grav_file_path, header=hdr_grav)
     # Extract time in terms of seconds after start
@@ -611,17 +731,17 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
     # shift time so initial time is zero to match interfacial tension time
     if zero_t_grav:
         t_grav -= t_grav[0]
-    
+
     # load rubotherm data in sync with time
     br_arr = df['WEITGHT(g)'].values
     bp_arr = df['BALANCE POSITION'].values
     p_arr = df['Now Pressure(kPa)'].values
     # set negative values to 0 to make them physical and prevent errors later
     p_arr[p_arr < 0] = 0
-    
+
     # TODO validate rubotherm data
     # are there at least 120 data points per pressure?
-    
+
     # initialize data frame to store data
     df = pd.DataFrame(columns=columns)
     df['p set [kPa]'] = p_set_arr
@@ -631,7 +751,7 @@ def load_raw_data(adsa_folder, adsa_file_list, adsa_t0_list, grav_file_path, p_s
     else:
         return df, br_arr, bp_arr, p_arr, t_grav, v_drop, t_adsa
 
-    
+
 def reject_outliers(data, m=2, min_std=0.1, return_inds=False):
     """from https://stackoverflow.com/questions/11686720/is-there-a-numpy-builtin-to-reject-outliers-from-a-list"""
     # get indices of data that are not outliers or nans
@@ -644,7 +764,7 @@ def reject_outliers(data, m=2, min_std=0.1, return_inds=False):
     # announce if outliers were rejected
     if num_outliers > 0:
         print("Rejected %d outliers." % (num_outliers) )
-        
+
     # return indices?
     if return_inds:
         inds = np.where(is_not_outlier)[0]
@@ -667,10 +787,10 @@ def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
             temperature in Celsius (only to one decimal place)
         eos_file_hdr : string
             File header for equation of state data table
-    
+
     RETURNS:
         rho : same as p
-            density in g/mL of co2 @ 30.5 C 
+            density in g/mL of co2 @ 30.5 C
     """
     dec, integ = np.modf(T)
     T_tag = '%d-%dC' % (integ, 10*dec)
@@ -685,7 +805,7 @@ def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
 def slope(x, a):
     """gives a slope going through origin."""
     return a*x
-    
+
 def square_root_3param(t, a, b, t0):
     return a*(t-t0)**(0.5) + b
 
@@ -709,7 +829,7 @@ def store_densities(df_thermo, adsa_folder, adsa_file, t0, t_grav, p_arr, T,
     with ADSA.
     PARAMETERS:
         df_thermo : pandas dataframe
-            Dataframe of thermodynamic data computed with G-ADSA analysis 
+            Dataframe of thermodynamic data computed with G-ADSA analysis
             (needs specific volume)
         adsa_folder : string
             name of folder with ADSA data file
@@ -726,7 +846,7 @@ def store_densities(df_thermo, adsa_folder, adsa_file, t0, t_grav, p_arr, T,
             Set-value of temperature
         hdr_adsa : int
             Row of ADSA data file to use as header
-    
+
     RETURNS:
         df_densities : pandas dataframe
             Dataframe of time, CO2 density, and sample density at each ADSA
@@ -734,7 +854,7 @@ def store_densities(df_thermo, adsa_folder, adsa_file, t0, t_grav, p_arr, T,
     """
     # initialize dataframe of densities
     df_densities = pd.DataFrame(columns=['Time ADSA [s]', 'Time Gravimetry [s]',
-                                         'CO2 Density [g/mL]', 
+                                         'CO2 Density [g/mL]',
                                          'Sample Density [g/mL]'])
     # extract ADSA time
     df_adsa = pd.read_csv(adsa_folder + adsa_file, header=hdr_adsa)
@@ -753,11 +873,11 @@ def store_densities(df_thermo, adsa_folder, adsa_file, t0, t_grav, p_arr, T,
                                     p_adsa[i])) for i in range(len(p_adsa))]
     df_densities['Sample Density [g/mL]'] = 1 / df_thermo['specific volume [mL/g]'] \
                                             .to_numpy(dtype=float)[inds_thermo]
-    
+
     return df_densities
 
 
-def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr, 
+def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr,
                 v_drop, n_adsa, w_resolution=1E-5):
     """
     """
@@ -773,7 +893,7 @@ def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr,
     # identify final measurement of 'measuring point 1'
     i_mp1_f = i_mp1[np.logical_and(i_mp1 > np.max(i_zero), i_mp1 < np.min(i_mp2))]
     i_mp1_f = i_mp1_f[1:]
-    
+
     # get averages and stdev of each balance reading (br), rejecting obvious
     # outliers (in case only part of the mass is lifted)
     df['zero [g]'].iloc[i] = np.mean(br_select[i_zero])
@@ -797,11 +917,11 @@ def store_grav_adsa(df, i, i_p0, i_p1, t_grav, t_adsa, br_arr, bp_arr,
         df['drop volume std [uL]'].iloc[i] = np.std(v_drop[i_adsa])
     except:
         print('no adsa data for current pressure.')
-        
+
     return df
 
 
-def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr, 
+def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr,
                            bp_arr, v_drop, n_minutes, n_p_eq, date_ref, time_ref,
                            ref_by_dp=True, n_adsa=15, w_resolution=1E-5):
     """
@@ -816,7 +936,7 @@ def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr,
     i_mp1 = np.where(bp_select==2)[0]
     # identify final measurement of 'measuring point 1'
     i_mp1_f = i_mp1[:n_p_eq]
-    
+
     # get averages and stdev of each balance reading (br), rejecting obvious
     # outliers (in case only part of the mass is lifted)
     df['zero [g]'].iloc[i] = metadata['zero [g]'].iloc[i] # only one zero meas
@@ -833,7 +953,7 @@ def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr,
         i_adsa = get_inds_adsa_manual(time_date_ref, t_adsa, t_grav, metadata, i, n_minutes)
     else:
         i_adsa, success = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, return_success=True)
-        
+
     # drop volume [uL]
     v_drop_mean = np.mean(v_drop[i_adsa])
     print('Drop volume = %f uL.' % v_drop_mean)
@@ -842,7 +962,7 @@ def store_grav_adsa_manual(df, metadata, i, i_p0, i_p1, t_grav, t_adsa, br_arr,
     if not success:
         df['drop volume [uL]'].iloc[i] = np.nan
         df['drop volume std [uL]'].iloc[i] = np.nan
-        
+
     return df
 
 
@@ -850,7 +970,7 @@ def store_if_tension(if_tension, df, i, i_p0, i_p1, t_grav, t_adsa, n_adsa):
     """
     """
     # indices of corresponding ADSA data points
-    i_adsa, success = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, return_success=True) 
+    i_adsa, success = get_inds_adsa(t_adsa, t_grav, i_p0, i_p1, n_adsa, return_success=True)
     # cut out indices that extend beyond the length of the interfacial tension data
     if success:
         # compute interfacial tension [mN/m] from entries that are not nan
@@ -865,7 +985,7 @@ def store_if_tension(if_tension, df, i, i_p0, i_p1, t_grav, t_adsa, n_adsa):
         df['if tension std [mN/m]'].iloc[i] = np.std(if_tension[i_adsa])
     else:
         print("Interfacial tension data not stored.")
-    
+
     return df
 
 
@@ -873,12 +993,12 @@ def save_trd(df_trd, trd_save_hdr):
     """
     Saves dataframe with header found in TRD files saved by Belsorp. to match
     TRD files from automatic tests precisely.
-    """    
+    """
     df_trd.to_csv(trd_save_hdr + '_no_hdr.csv', index=False)
     # add header to csv file to exactly match the TRD files saved during the automatic experiments
     add_hdr(trd_save_hdr)
 
-def add_hdr(trd_save_hdr, delete_no_hdr=True, no_hdr_tag='_no_hdr.csv', 
+def add_hdr(trd_save_hdr, delete_no_hdr=True, no_hdr_tag='_no_hdr.csv',
               hdr_list=[':************************',
                         ':    TREND DATA FILE',
                         ':************************']):
@@ -891,6 +1011,6 @@ def add_hdr(trd_save_hdr, delete_no_hdr=True, no_hdr_tag='_no_hdr.csv',
         with open(trd_save_hdr + '_no_hdr.csv', 'r', newline='') as incsv:
             reader = csv.reader(incsv)
             writer.writerows(row for row in reader)
-            
+
     if delete_no_hdr:
         os.remove(trd_save_hdr + no_hdr_tag)
