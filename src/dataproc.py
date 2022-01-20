@@ -1766,7 +1766,7 @@ def remove_nan_entries(nan_containing_arr, accompanying_arr_list):
     return nan_free_arr_list
 
 
-def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
+def rho_co2(p, T, data_dir='../input', eos_file_hdr='eos_co2_', ext='.csv'):
     """
     Returns an interpolation function for the density of carbon dioxide
     according to the equation of state (data taken from
@@ -1778,6 +1778,8 @@ def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
             pressure in kPa of CO2
         T : float
             temperature in Celsius (only to one decimal place)
+        data_dir : string
+            Directory in which data files are stored relative to notebooks
         eos_file_hdr : string
             File header for equation of state data table
     RETURNS:
@@ -1789,7 +1791,7 @@ def rho_co2(p, T, eos_file_hdr='eos_co2_', ext='.csv'):
     # create identifier string for temperature
     T_tag = '%d-%dC' % (integ, 10*dec)
     # dataframe of appropriate equation of state (eos) data from NIST
-    df_eos = pd.read_csv(eos_file_hdr + T_tag + ext, header=0)
+    df_eos = pd.read_csv(os.path.join(data_dir, eos_file_hdr + T_tag + ext), header=0)
     # get list of pressures of all data points [kPa]
     p_co2_kpa = df_eos['Pressure (kPa)'].to_numpy(dtype=float)
     # get corresponding densities of CO2 [g/mL]

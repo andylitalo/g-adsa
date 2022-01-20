@@ -1,0 +1,142 @@
+:******************************************************************************
+:*                            Measurement data                                *
+:******************************************************************************
+:
+:==============================================================================
+: [Name of  Apparatus] High pressure two-component adsorption measuring system
+: [    Model mane    ] FMS-BG
+:==============================================================================
+:
+:--------------
+: sample condition
+:--------------
+,data folder name,"C:\DATA-PROVE\CalTech"
+,sample name,1k2f_60c
+,comment,polypropylene glycol 1000g/mol
+,sample_weight_gravimety, 0.7293 
+,sample_weight_volumetric, 0 
+:--------------
+: computation parameters
+:--------------
+,basket_weight, 7.46809 
+,basket_density, 7.98 
+,air densiry, 0.0012 
+,bouyancy correction,calclation
+,He molecular weight, 0.001 
+,He 2nd virial coef., 0 
+,He gas supply pressure, 5000 
+,sample density, 1 
+,Dead volume, 205 
+,adsorbate gas 2nd Virial coef., 0 
+,adsorbed layer density, 0 
+:--------------
+: method of measurement - pretreatment
+:--------------
+,pretreatment,skip
+,pretreatment time, 60 
+,pretreatment bath bias, 0 
+,kind of pretreatment heater,heater
+,pretreatment temperature, 180 
+,rate of temp. elevation, 10 
+,evacuation period, 120 
+,ultimate evacuation vacuum pressure, 0.001 
+,continuous measurement,does
+:--------------
+: method of measurement - adsorption
+:--------------
+,method of measurement,mono
+,gas dosing port X,Ads2
+,molecular weight X, 44.01 
+,ratio of adsorptive X, 100 
+,pre-adsorption pressure, 1 
+,gas supply pressure X, 5500 
+,gas dosing port Y,Ads2
+,molecular weight Y, 44 
+,ratio of adsorptive Y, 0 
+,gas supply pressure Y, 5000 
+,measurement of rate of adsroption,does not do
+:--------------
+: measurement parameters
+:--------------
+,apparatus temperature, 50 
+,type of meas. apparatus temperatureinput value
+,tube temperature, 0 
+,adsorption temperature, 60 
+,type of meas. ads. temperature,measured data
+,bias temp. of circulation bath, 18.6 
+,adsorption temperature stable method,vacuum state
+,equilibrium (pressure),no
+,equilibrium condition (P1), 135 
+,equilibrium condition (P2), 35 
+,equilibrium condition (P3), 5 
+,equilibrium condition (P4), 0.5 
+,equilibrium (weight),yes
+,equilibrium condition (weight), 0.00003 
+,fluid density measurement,measured data
+,Post-processing end state,vacuum state
+:-------------------
+: dosing pressure parameters
+:-------------------
+,gas dosing method,step method
+,ads. pres. limits 1, 50 
+,ads. pres. limits 2, 150 
+,ads. pres. limits 3, 500 
+,ads. pres. limits 4, 5000 
+,ads. pres. step 1, 50 
+,ads. pres. step 1, 100 
+,ads. pres. step 1, 350 
+,ads. pres. step 1, 500 
+,max. ads. pres., 5500 
+,desorption,does
+,des. pres. limits 1, 3500 
+,des. pres. limits 2, 1000 
+,des. pres. limits 3, 300 
+,des. pres. limits 4, 0 
+,des. pres. step 1, 750 
+,des. pres. step 1, 750 
+,des. pres. step 1, 200 
+,des. pres. step 1, 50 
+,min. des. pres., 10 
+,gas dosing table file,C:\Documents and Settings\TEST\Desktop\MSB-BG_He(E)\DEFAULT.TBL
+:==============================================================================
+: measurement initial value
+:==============================================================================
+,apparatus temperature, 50 
+,adsorption temperature, 60 
+,true S.W.(Gravimetic) after pretreatment,-2.17633173059208 
+,sinker weight at vacuum, 19.7216004761905 
+,MP1-ZP weight at vacuum, 8.01357936507936 
+,V0_a1,-999 
+,V0_a2,-999 
+,MP1 volume at 101.325kPa,-0.895514353399093 
+,sample true density(g/cm3), 1 
+,start date of measurement,07-02-2019
+,start time of measurement,01:18:36
+:==============================================================================
+: adsorption-desorption measurement data
+:==============================================================================
+,,,No.,temp4,equilibrium pressure,MP1-MP0,uptake,uptake per unit,adsorbate volume,MP2-MP1,adsorptive density,start time of gas dosing
+,,,,(°C),(kPa),(g),(g),(g/g),(cm3),(g),(g/cm3),
+,,,1,59.85,49.851,8.01128,-0.00298,0.00137,0.00000,19.71827,7.5874E-04,19/07/02,01:18:38
+,,,2,59.82,99.818,8.00959,-0.00538,0.00247,0.00000,19.71482,1.5457E-03,19/07/02,02:26:34
+,,,3,59.81,200.592,8.00614,-0.01026,0.00472,0.00000,19.70777,3.1530E-03,19/07/02,03:47:52
+,,,4,59.84,549.557,7.99385,-0.02762,0.01269,0.00000,19.68294,8.8136E-03,19/07/02,05:38:48
+,,,5,59.78,1046.033,7.97569,-0.05321,0.02445,0.00000,19.64655,1.7111E-02,19/07/02,08:25:54
+,,,6,59.84,1541.547,7.95679,-0.07981,0.03667,0.00000,19.60885,2.5707E-02,19/07/02,11:18:45
+,,,7,59.74,2033.003,7.93702,-0.10753,0.04941,0.00000,19.56992,3.4583E-02,19/07/02,14:26:42
+,,,8,59.93,2525.741,7.91618,-0.13663,0.06278,0.00000,19.52944,4.3814E-02,19/07/02,17:24:45
+,,,9,60.05,3016.876,7.89425,-0.16715,0.07681,0.00000,19.48735,5.3409E-02,19/07/02,20:23:13
+,,,10,60.16,3506.706,7.87112,-0.19927,0.09156,0.00000,19.44338,6.3435E-02,19/07/02,23:26:46
+,,,11,60.15,3995.390,7.84659,-0.23321,0.10716,0.00000,19.39728,7.3945E-02,19/07/03,02:29:48
+,,,12,60.01,4484.485,7.82045,-0.26926,0.12372,0.00000,19.34873,8.5016E-02,19/07/03,05:18:28
+,,,13,59.97,4972.345,7.79249,-0.30768,0.14138,0.00000,19.29750,9.6698E-02,19/07/03,08:12:42
+,,,14,59.98,5337.004,7.77022,-0.33818,0.15539,0.00000,19.25725,1.0587E-01,19/07/03,11:18:25
+,,,15,59.99,4602.330,7.81399,-0.27823,0.12785,0.00000,19.33645,8.7817E-02,19/07/03,14:28:08
+,,,16,59.94,3863.536,7.85340,-0.22386,0.10286,0.00000,19.40969,7.1118E-02,19/07/03,16:37:00
+,,,17,60.04,3122.730,7.88931,-0.17405,0.07997,0.00000,19.47779,5.5589E-02,19/07/03,19:01:12
+,,,18,60.15,2380.045,7.92230,-0.12801,0.05882,0.00000,19.54171,4.1015E-02,19/07/03,21:30:50
+,,,19,60.01,1634.049,7.95284,-0.08521,0.03915,0.00000,19.60171,2.7334E-02,19/07/04,00:06:07
+,,,20,59.98,887.092,7.98123,-0.04527,0.02080,0.00000,19.65834,1.4422E-02,19/07/04,02:47:58
+,,,21,59.91,688.096,7.98841,-0.03511,0.01613,0.00000,19.67292,1.1099E-02,19/07/04,05:49:57
+,,,22,59.72,488.886,7.99550,-0.02509,0.01153,0.00000,19.68727,7.8280E-03,19/07/04,08:12:53
+,,,23,59.73,289.889,8.00245,-0.01525,0.00701,0.00000,19.70141,4.6027E-03,19/07/04,10:35:11
