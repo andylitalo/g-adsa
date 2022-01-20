@@ -1766,7 +1766,7 @@ def remove_nan_entries(nan_containing_arr, accompanying_arr_list):
     return nan_free_arr_list
 
 
-def rho_co2(p, T, data_dir='../input', eos_file_hdr='eos_co2_', ext='.csv'):
+def rho_co2(p, T, data_dir='../input/eos', eos_file_hdr='eos_co2_', ext='.csv'):
     """
     Returns an interpolation function for the density of carbon dioxide
     according to the equation of state (data taken from

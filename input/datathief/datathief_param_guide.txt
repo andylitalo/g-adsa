@@ -1,0 +1,23 @@
+Look back affects the number of points used to define the current direction. The bigger the number, the farther
+back the point, resulting in more reluctancy to take corners.
+
+Box size affects the size of the square in which to look. A bigger box size allows for bigger gaps to jump, but
+can also result in greater computation time and a tendency to jump to other lines in the graph. The number you give here is just an indication to DataThief. Actually, the real size of the box is determined using this value, the value of "Look ahead - see following - and the thickness of the line to be scanned.
+
+Look ahead affects the importance of nearness of the next point. The bigger the number, the less important
+it is that the next point is near to the current point, but DataThief will have a greater tendency to ignore
+intermediate points.
+
+Direction affects the importance of maintaining the last direction (as defined by "Look back"). A bigger number
+will result in a reduced tendency to take turns.
+
+Tolerance affects the deviation from the requested color that is allowed. The bigger the number, the more
+deviation is allowed.
+
+Center affects the stress that is laid on being near the center of the traced line. With thin lines this has no
+effect, but with thicker lines an increased number will steer the traced line more through the center, sometimes
+overriding all other aspects, resulting in a U-turn.
+
+Good recipe for staying in the middle, not turning back, and still taking curves:
+5,3,1,2,1,3
+Change all to ones to take sharp curves in thin lines

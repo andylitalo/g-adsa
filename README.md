@@ -1,2 +1,11 @@
 # g-adsa
-Code for analyzing g-adsa data from Di Maio Lab
+Code for analyzing gravimmetry-axisymmetric drop-shape analysis (G-ADSA) data
+measured in the Di Maio Lab of the University of Naples by Andy Ylitalo during
+the summer of 2019.
+
+## Folder Structure
+
+- `input`: contains input data for analysis
+- `notebooks`: Jupyter notebooks that perform analysis
+- `output`: contains output of analysis
+- `src`: Python function libraries
