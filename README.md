@@ -7,9 +7,10 @@ interfacial tension of polyol-CO2 mixtures measured with
 gravimetry-axisymmetric drop-shape analysis (G-ADSA) in the Di Maio Lab of the
 University of Naples by Andy Ylitalo during the summer of 2019.
 
-To use, install Python 3 (tested with v`3.6.X`) and Jupyter Notebook, install 
-required dependencies, download the repo, and run the Jupyter notebooks to
-compute  the desired properties and plots thereof.
+To use, install Python 3 (tested with v`3.6.X`) and Jupyter Notebook, install
+required dependencies listed in `requirements.txt`, download the repo,
+and run the Jupyter notebooks in the `notebooks` directory to compute the 
+desired properties and make plots thereof.
 
 ## Folder Structure
 
