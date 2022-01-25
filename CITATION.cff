@@ -1,0 +1,9 @@
+cff-version: 1.2.0
+message: "If you use this software, please cite it as below."
+authors:
+  - family-names: Ylitalo
+    given-names: Andrew
+    orcid: https://orcid.org/0000-0003-4086-3508
+title: "G-ADSA"
+version: 0.0.1
+date-released: 2022-01-25

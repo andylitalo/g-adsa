@@ -1,4 +1,7 @@
 # g-adsa
+
+Version: `0.0.1`
+
 Code for analyzing gravimmetry-axisymmetric drop-shape analysis (G-ADSA) data
 measured in the Di Maio Lab of the University of Naples by Andy Ylitalo during
 the summer of 2019.
