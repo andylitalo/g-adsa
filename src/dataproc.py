@@ -259,7 +259,7 @@ def compute_gas_mass(i, T, p_arr, p_set_arr, df, bp_arr, br_arr, br_eq_0, t_grav
     return tuple(result)
 
 
-def compute_henrys_const(p, solub, spec_vol, p_thresh=500, mw=44.01, maxfev=10000,
+def compute_henrys_const(p, solub, spec_vol, p_thresh=1000, mw=44.01, maxfev=10000,
                         s_solub=None, s_spec_vol=None, force_origin=True,
                         by_wt=False):
     """
